@@ -3,7 +3,6 @@ Lambda handler principal para o bot Telegram
 """
 import logging
 import json
-import threading
 from telegram.security import validate_telegram_request, is_authorized_user
 from telegram.handler import TelegramHandler
 from processing.openai_client import OpenAIClient
@@ -27,7 +26,7 @@ def lambda_handler(event, context):
         context: Contexto da Lambda
 
     Returns:
-        Resposta HTTP 200 imediatamente (processamento ocorre em background)
+        Resposta HTTP (sempre 200 para evitar retries do Telegram)
     """
     logger.info("Lambda invocada")
 
@@ -62,30 +61,6 @@ def lambda_handler(event, context):
 
         logger.info(f"Processando foto do usuário {user_id}")
 
-        # ⚡ RETORNA 200 IMEDIATAMENTE para o Telegram
-        # Processamento pesado ocorre em background
-        thread = threading.Thread(
-            target=_process_receipt,
-            args=(chat_id, user_id, message_id, update_data),
-            daemon=True
-        )
-        thread.start()
-
-        return create_response(200, {"ok": True, "message": "Processing started"})
-
-    except Exception as e:
-        logger.error(f"Erro crítico na validação: {e}", exc_info=True)
-        return create_response(200, {"ok": False, "error": "Internal error"})
-
-
-def _process_receipt(chat_id, user_id, message_id, update_data):
-    """
-    Processa a nota fiscal em background
-    Não precisa retornar nada, apenas envia mensagens ao usuário
-    """
-    try:
-        telegram = TelegramHandler()
-
         # Envia mensagem de aguarde
         telegram.send_message(
             chat_id,
@@ -101,7 +76,7 @@ def _process_receipt(chat_id, user_id, message_id, update_data):
                 "❌ Falha ao baixar a imagem. Tente novamente.",
                 message_id
             )
-            return
+            return create_response(200, {"ok": False, "error": "Failed to download image"})
 
         # Processa com OpenAI
         openai_client = OpenAIClient()
@@ -113,7 +88,7 @@ def _process_receipt(chat_id, user_id, message_id, update_data):
                 "❌ Falha ao processar a imagem com OpenAI. Tente novamente.",
                 message_id
             )
-            return
+            return create_response(200, {"ok": False, "error": "OpenAI processing failed"})
 
         # Parse e validação dos dados
         parser = ReceiptParser()
@@ -125,7 +100,7 @@ def _process_receipt(chat_id, user_id, message_id, update_data):
                 "❌ Não foi possível extrair produtos da nota fiscal. Verifique se a imagem está legível.",
                 message_id
             )
-            return
+            return create_response(200, {"ok": False, "error": "No products found"})
 
         logger.info(f"Extraídos {len(products)} produtos")
 
@@ -144,16 +119,27 @@ def _process_receipt(chat_id, user_id, message_id, update_data):
 
         telegram.send_message(chat_id, success_msg, message_id)
 
+        return create_response(200, {
+            "ok": True,
+            "products_inserted": result['success'],
+            "products_failed": result['failed']
+        })
+
     except Exception as e:
-        logger.error(f"Erro ao processar nota fiscal: {e}", exc_info=True)
+        logger.error(f"Erro crítico: {e}", exc_info=True)
+
+        # Tenta notificar o usuário se possível
         try:
-            telegram.send_message(
-                chat_id,
-                "❌ Erro ao processar sua solicitação. Tente novamente mais tarde.",
-                message_id
-            )
+            if 'telegram' in locals() and 'chat_id' in locals():
+                telegram.send_message(
+                    chat_id,
+                    "❌ Erro interno ao processar sua solicitação. Tente novamente mais tarde.",
+                    message_id if 'message_id' in locals() else None
+                )
         except:
             pass
+
+        return create_response(200, {"ok": False, "error": "Internal error"})
 
 
 def create_response(status_code: int, body: dict) -> dict:
