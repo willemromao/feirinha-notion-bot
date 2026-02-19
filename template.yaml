@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Bot Telegram para cadastro automático de compras no Notion
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+
+Resources:
+  TelegramBotFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: lambda_handler.lambda_handler
+      Environment:
+        Variables:
+          TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
+          TELEGRAM_SECRET_TOKEN: !Ref TelegramSecretToken
+          AUTHORIZED_USER_ID: !Ref AuthorizedUserId
+          OPENAI_API_KEY: !Ref OpenAIApiKey
+          NOTION_TOKEN: !Ref NotionToken
+          NOTION_DATABASE_ID: !Ref NotionDatabaseId
+      Events:
+        TelegramWebhook:
+          Type: HttpApi
+          Properties:
+            Path: /webhook
+            Method: post
+
+Parameters:
+  TelegramBotToken:
+    Type: String
+    NoEcho: true
+    Description: Token do bot obtido do BotFather
+
+  TelegramSecretToken:
+    Type: String
+    NoEcho: true
+    Description: Token secreto para validação do webhook
+
+  AuthorizedUserId:
+    Type: String
+    Description: Telegram User ID autorizado a usar o bot
+
+  OpenAIApiKey:
+    Type: String
+    NoEcho: true
+    Description: Chave da API OpenAI
+
+  NotionToken:
+    Type: String
+    NoEcho: true
+    Description: Token de integração do Notion
+
+  NotionDatabaseId:
+    Type: String
+    Description: ID da base de dados Notion
+
+Outputs:
+  WebhookUrl:
+    Description: URL para configurar o webhook do Telegram
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/webhook'
+
+  FunctionArn:
+    Description: ARN da função Lambda
+    Value: !GetAtt TelegramBotFunction.Arn
