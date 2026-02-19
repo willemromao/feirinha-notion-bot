@@ -45,6 +45,7 @@ class TelegramHandler:
                 return None
 
             return {
+                "update_id": update.get("update_id"),
                 "chat_id": message["chat"]["id"],
                 "user_id": message["from"]["id"],
                 "message_id": message["message_id"],

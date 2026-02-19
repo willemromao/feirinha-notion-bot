@@ -11,6 +11,22 @@ Globals:
       - x86_64
 
 Resources:
+  # Tabela DynamoDB para rastrear updates processados
+  UpdatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${AWS::StackName}-updates'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: update_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: update_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
   TelegramBotFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -24,6 +40,10 @@ Resources:
           OPENAI_API_KEY: !Ref OpenAIApiKey
           NOTION_TOKEN: !Ref NotionToken
           NOTION_DATABASE_ID: !Ref NotionDatabaseId
+          DYNAMODB_TABLE_NAME: !Ref UpdatesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UpdatesTable
       Events:
         TelegramWebhook:
           Type: HttpApi
@@ -68,3 +88,7 @@ Outputs:
   FunctionArn:
     Description: ARN da função Lambda
     Value: !GetAtt TelegramBotFunction.Arn
+
+  UpdatesTableName:
+    Description: Nome da tabela DynamoDB para updates
+    Value: !Ref UpdatesTable

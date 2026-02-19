@@ -8,6 +8,7 @@ from telegram.handler import TelegramHandler
 from processing.openai_client import OpenAIClient
 from processing.receipt_parser import ReceiptParser
 from notion.client import NotionClient
+from storage.dynamodb_client import DynamoDBClient
 
 # Configuração de logging
 logging.basicConfig(
@@ -46,9 +47,20 @@ def lambda_handler(event, context):
             logger.info("Update ignorado (não é foto ou inválido)")
             return create_response(200, {"ok": True, "message": "Update ignored"})
 
+        update_id = update_data.get("update_id")
         chat_id = update_data["chat_id"]
         user_id = update_data["user_id"]
         message_id = update_data["message_id"]
+
+        # Verifica se já processamos este update_id (evita duplicatas)
+        if update_id:
+            db_client = DynamoDBClient()
+            if db_client.is_processed(update_id):
+                logger.info(f"Update {update_id} já processado, ignorando")
+                return create_response(200, {"ok": True, "message": "Already processed"})
+            
+            # Marca como processado ANTES de processar (evita race condition)
+            db_client.mark_as_processed(update_id)
 
         # Valida usuário autorizado
         if not is_authorized_user(user_id):

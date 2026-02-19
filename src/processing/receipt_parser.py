@@ -104,8 +104,8 @@ class ReceiptParser:
             forma_pagamento = product["FormaDePagamento"]
             if forma_pagamento not in VALID_PAYMENT_METHODS:
                 logger.warning(f"Produto {index}: forma de pagamento inválida '{forma_pagamento}'")
-                # Fallback para Pix
-                forma_pagamento = "Pix"
+                # Fallback para Will
+                forma_pagamento = "Will"
 
             # Valida tipos numéricos
             qnt = float(product["Qnt"])
