@@ -3,11 +3,56 @@ Cliente para integração com Notion API
 """
 import os
 import logging
+import re
 from typing import List, Dict, Any
 from notion_client import Client
 
 logger = logging.getLogger(__name__)
 
+EMOJI_BY_CATEGORY = {
+    "Extra": "🧾",
+    "Básico": "🥫",
+    "Óleos/condimentos": "🧂",
+    "Padaria": "🥖",
+    "Bebidas": "🥤",
+    "Carnes/ovos": "🥩",
+    "Frios": "🧀",
+    "Lanches/besteiras": "🍫",
+    "Temperos": "🌿",
+    "Grãos/mel": "🌾",
+    "Frutas": "🍎",
+    "Legumes/verduras": "🥕",
+    "Limpeza": "🧴",
+    "Higiene": "🧼",
+}
+
+EMOJI_BY_KEYWORD = [
+    ("sardinha", "🐟"),
+    ("atum", "🐟"),
+    ("peixe", "🐟"),
+    ("frango", "🍗"),
+    ("carne", "🥩"),
+    ("ovo", "🥚"),
+    ("pão", "🥖"),
+    ("queijo", "🧀"),
+    ("presunto", "🥓"),
+    ("iog", "🥛"),
+    ("leite", "🥛"),
+    ("café", "☕"),
+    ("arroz", "🍚"),
+    ("feijão", "🫘"),
+    ("macarrão", "🍝"),
+    ("molho", "🍅"),
+    ("tomate", "🍅"),
+    ("banana", "🍌"),
+    ("maçã", "🍎"),
+    ("batata", "🥔"),
+    ("cebola", "🧅"),
+    ("alho", "🧄"),
+    ("chocolate", "🍫"),
+    ("bisco", "🍪"),
+    ("sorvete", "🍨"),
+]
 
 class NotionClient:
     """Cliente para inserir produtos na base Notion"""
@@ -65,12 +110,18 @@ class NotionClient:
         Args:
             product: Dicionário com dados validados do produto
         """
+        product_name = self._normalize_product_name(product["Produto"])
+        product_emoji = self._pick_product_emoji(
+            product_name=product_name,
+            category=product["Categoria"],
+        )
+
         properties = {
             "Produto": {
                 "title": [
                     {
                         "text": {
-                            "content": product["Produto"]
+                            "content": product_name
                         }
                     }
                 ]
@@ -112,5 +163,41 @@ class NotionClient:
 
         self.client.pages.create(
             parent={"database_id": self.database_id},
+            icon={"type": "emoji", "emoji": product_emoji},
             properties=properties
         )
+
+    @staticmethod
+    def _pick_product_emoji(product_name: str, category: str) -> str:
+        """Seleciona emoji do item com base em palavra-chave e categoria."""
+        normalized_name = product_name.lower()
+
+        for keyword, emoji in EMOJI_BY_KEYWORD:
+            if keyword in normalized_name:
+                return emoji
+
+        return EMOJI_BY_CATEGORY.get(category, "🛒")
+
+    @staticmethod
+    def _normalize_product_name(product_name: str) -> str:
+        """
+        Normaliza texto do produto:
+        - remove espaços duplicados
+        - se vier em caixa alta, converte para um title case legível
+        """
+        cleaned = re.sub(r"\s+", " ", str(product_name)).strip()
+        if not cleaned:
+            return cleaned
+
+        # Heurística: OCR costuma enviar tudo em caixa alta.
+        letters = [c for c in cleaned if c.isalpha()]
+        if letters:
+            upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+            if upper_ratio > 0.85:
+                cleaned = cleaned.lower().title()
+
+                # Ajustes simples para conectivos comuns em PT-BR.
+                for word in [" De ", " Da ", " Do ", " Das ", " Dos ", " E "]:
+                    cleaned = cleaned.replace(word, word.lower())
+
+        return cleaned

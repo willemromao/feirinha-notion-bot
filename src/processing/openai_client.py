@@ -5,7 +5,7 @@ import os
 import logging
 import base64
 from typing import Optional
-from openai import OpenAI
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -14,13 +14,26 @@ Extraia TODOS os produtos da imagem com estas informações:
 
 Campos obrigatórios:
 - Data: Data da compra (formato: YYYY-MM-DD)
-- Produto: Nome do produto
-- Tipo: Descrição da embalagem (ex: "Vidro de 330 ml", "No peso - 300 g")
+- Produto: Nome COMPLETO do produto, sem abreviar palavras e sem unidade/peso/volume
+- Tipo: Descrição da embalagem/peso/volume (ex: "Pacote de 500 g", "No peso - 300 g")
 - Qnt: Quantidade (número de itens)
 - Valor: Preço unitário ou total em Reais (apenas número, ex: 15.50)
 - Desconto: Valor do desconto (0 se nenhum)
 - Categoria: Escolha uma das categorias exatas: Extra, Básico, Óleos/condimentos, Padaria, Bebidas, Carnes/ovos, Frios, Lanches/besteiras, Temperos, Grãos/mel, Frutas, Legumes/verduras, Limpeza, Higiene
 - Forma de Pagamento: Extraia do comprovante. Opções exatas: Will, Espécie, Pix, Débito - Inter, Crédito - Inter, Débito - Nubank, Crédito - Nubank
+
+Regras obrigatórias de formatação:
+- Nunca inclua peso/volume/unidade no campo Produto (ex: remover "480G", "1L", "KG", "UN", "PC")
+- Sempre coloque peso/volume/unidade no campo Tipo em texto descritivo
+- Nunca retorne Tipo apenas como "KG", "G", "ML", "L", "UN" ou similares
+- Preserve palavras inteiras no Produto (evite abreviações como "Bisc", "Mussarela Molfino Importad")
+- Corrija abreviações e truncamentos comuns do cupom fiscal para português natural no Produto
+- Quando o texto do cupom indicar "massa sem..." de macarrão, normalize como "Macarrão de Sêmola ..."
+
+Exemplos de normalização esperada:
+- "Bisc Rech Amori Richester" -> "Biscoito Recheado Amori Richester"
+- "Massa Sem Vitarella Parafuso" -> "Macarrão de Sêmola Vitarella Parafuso"
+- "Leite Uht Piracijuba Int" -> "Leite UHT Piracanjuba Integral"
 
 Retorne um array JSON com todos os produtos no formato:
 [
@@ -46,7 +59,7 @@ class OpenAIClient:
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY não configurada")
-        self.client = OpenAI(api_key=api_key)
+        self.api_key = api_key
 
     def extract_receipt_data(self, image_bytes: bytes) -> Optional[str]:
         """
@@ -64,34 +77,63 @@ class OpenAIClient:
 
             logger.info("Enviando imagem para OpenAI...")
 
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": SYSTEM_PROMPT
-                    },
+            payload = {
+                "model": "gpt-5-nano",
+                "instructions": SYSTEM_PROMPT,
+                "input": [
                     {
                         "role": "user",
                         "content": [
                             {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
-                                }
+                                "type": "input_text",
+                                "text": "Extraia todos os produtos desta nota fiscal e retorne o JSON conforme instruído."
                             },
                             {
-                                "type": "text",
-                                "text": "Extraia todos os produtos desta nota fiscal e retorne o JSON conforme instruído."
+                                "type": "input_image",
+                                "image_url": f"data:image/jpeg;base64,{image_base64}"
                             }
                         ]
                     }
                 ],
-                max_tokens=2000,
-                temperature=0.2
-            )
+                "max_output_tokens": 4000,
+                "reasoning": {
+                    "effort": "low"
+                }
+            }
 
-            result = response.choices[0].message.content
+            try:
+                response = httpx.post(
+                    "https://api.openai.com/v1/responses",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload,
+                    timeout=60.0
+                )
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                body = exc.response.text if exc.response is not None else "<sem resposta>"
+                logger.error(f"OpenAI retornou HTTP {exc.response.status_code if exc.response else '??'}: {body}")
+                return None
+
+            response_json = response.json()
+
+            result = response_json.get("output_text")
+            if not result:
+                # Compatibilidade com formatos alternativos do Responses API
+                output = response_json.get("output", [])
+                texts = []
+                for item in output:
+                    for content in item.get("content", []):
+                        if content.get("type") in {"output_text", "text"} and content.get("text"):
+                            texts.append(content["text"])
+                result = "\n".join(texts).strip()
+
+            if not result:
+                logger.error(f"Resposta sem texto útil da OpenAI: {response_json}")
+                return None
+
             logger.info("Dados extraídos com sucesso da OpenAI")
             logger.debug(f"Resposta OpenAI: {result}")
 
