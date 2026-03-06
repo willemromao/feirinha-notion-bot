@@ -57,17 +57,17 @@ EMOJI_BY_KEYWORD = [
 class NotionClient:
     """Cliente para inserir produtos na base Notion"""
 
-    def __init__(self):
+    def __init__(self, database_id: str | None = None):
         token = os.environ.get('NOTION_TOKEN')
-        database_id = os.environ.get('NOTION_DATABASE_ID')
+        resolved_database_id = database_id or os.environ.get('NOTION_DATABASE_ID')
 
         if not token:
             raise ValueError("NOTION_TOKEN não configurada")
-        if not database_id:
+        if not resolved_database_id:
             raise ValueError("NOTION_DATABASE_ID não configurada")
 
         self.client = Client(auth=token)
-        self.database_id = database_id
+        self.database_id = resolved_database_id
 
     def insert_products(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
         """

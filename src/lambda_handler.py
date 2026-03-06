@@ -3,7 +3,11 @@ Lambda handler principal para o bot Telegram
 """
 import logging
 import json
-from telegram.security import validate_telegram_request, is_authorized_user
+from telegram.security import (
+    validate_telegram_request,
+    is_authorized_user,
+    get_user_notion_database_id,
+)
 from telegram.handler import TelegramHandler
 from processing.openai_client import OpenAIClient
 from processing.receipt_parser import ReceiptParser
@@ -116,8 +120,19 @@ def lambda_handler(event, context):
 
         logger.info(f"Extraídos {len(products)} produtos")
 
+        # Resolve base do Notion por usuário
+        notion_database_id = get_user_notion_database_id(user_id)
+        if not notion_database_id:
+            logger.error(f"Nenhuma base Notion configurada para usuário {user_id}")
+            telegram.send_message(
+                chat_id,
+                "❌ Base do Notion não configurada para seu usuário.",
+                message_id
+            )
+            return create_response(200, {"ok": False, "error": "Notion database not configured for user"})
+
         # Insere no Notion
-        notion_client = NotionClient()
+        notion_client = NotionClient(database_id=notion_database_id)
         result = notion_client.insert_products(products)
 
         # Monta mensagem de resultado

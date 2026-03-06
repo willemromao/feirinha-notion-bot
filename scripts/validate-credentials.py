@@ -24,7 +24,6 @@ def validate_env_vars():
     required_vars = [
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_SECRET_TOKEN",
-        "AUTHORIZED_USER_ID",
         "OPENAI_API_KEY",
         "NOTION_TOKEN",
         "NOTION_DATABASE_ID"
@@ -40,6 +39,16 @@ def validate_env_vars():
         else:
             masked = value[:8] + "..." if len(value) > 8 else "***"
             print(f"  ✅ {var}: {masked}")
+
+    authorized_single = os.environ.get("AUTHORIZED_USER_ID", "").strip()
+    authorized_list = os.environ.get("AUTHORIZED_USER_IDS", "").strip()
+    if not authorized_single and not authorized_list:
+        missing.append("AUTHORIZED_USER_ID|AUTHORIZED_USER_IDS")
+        print("  ❌ AUTHORIZED_USER_ID/AUTHORIZED_USER_IDS: nenhum definido")
+    else:
+        shown = authorized_single or authorized_list
+        masked = shown[:8] + "..." if len(shown) > 8 else shown
+        print(f"  ✅ AUTHORIZED_USER_ID(S): {masked}")
 
     if missing:
         print(f"\n❌ Variáveis faltando: {', '.join(missing)}")
@@ -97,13 +106,31 @@ def validate_notion():
     print("\n📝 Validando Notion Integration...")
     token = os.environ.get("NOTION_TOKEN")
     database_id = os.environ.get("NOTION_DATABASE_ID")
+    by_user_raw = os.environ.get("NOTION_DATABASE_BY_USER", "").strip()
 
     try:
         client = Client(auth=token)
 
-        # Tenta buscar informações do banco de dados
-        database = client.databases.retrieve(database_id)
-        print(f"  ✅ Base conectada: {database.get('title', [{}])[0].get('plain_text', 'Sem título')}")
+        database_ids = [database_id]
+        if by_user_raw:
+            import json
+            try:
+                mapping = json.loads(by_user_raw)
+                if isinstance(mapping, dict):
+                    database_ids.extend(str(v) for v in mapping.values() if str(v).strip())
+            except json.JSONDecodeError:
+                print("  ❌ NOTION_DATABASE_BY_USER inválido (JSON malformado)")
+                return False
+
+        # Remove duplicados preservando ordem
+        unique_database_ids = list(dict.fromkeys(dbid for dbid in database_ids if dbid))
+
+        # Tenta buscar informações do(s) banco(s) de dados
+        for idx, dbid in enumerate(unique_database_ids):
+            database = client.databases.retrieve(dbid)
+            db_name = database.get('title', [{}])[0].get('plain_text', 'Sem título')
+            prefix = "Base padrão" if idx == 0 else f"Base adicional {idx}"
+            print(f"  ✅ {prefix}: {db_name}")
 
         # Valida propriedades
         properties = database.get("properties", {})

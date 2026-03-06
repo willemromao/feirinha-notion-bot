@@ -37,9 +37,11 @@ Resources:
           TELEGRAM_BOT_TOKEN: !Ref TelegramBotToken
           TELEGRAM_SECRET_TOKEN: !Ref TelegramSecretToken
           AUTHORIZED_USER_ID: !Ref AuthorizedUserId
+          AUTHORIZED_USER_IDS: !Ref AuthorizedUserIds
           OPENAI_API_KEY: !Ref OpenAIApiKey
           NOTION_TOKEN: !Ref NotionToken
           NOTION_DATABASE_ID: !Ref NotionDatabaseId
+          NOTION_DATABASE_BY_USER: !Ref NotionDatabaseByUser
           DYNAMODB_TABLE_NAME: !Ref UpdatesTable
       Policies:
         - DynamoDBCrudPolicy:
@@ -66,6 +68,11 @@ Parameters:
     Type: String
     Description: Telegram User ID autorizado a usar o bot
 
+  AuthorizedUserIds:
+    Type: String
+    Default: ''
+    Description: Lista adicional de Telegram User IDs autorizados, separados por vírgula
+
   OpenAIApiKey:
     Type: String
     NoEcho: true
@@ -79,6 +86,11 @@ Parameters:
   NotionDatabaseId:
     Type: String
     Description: ID da base de dados Notion
+
+  NotionDatabaseByUser:
+    Type: String
+    Default: ''
+    Description: JSON opcional para rotear usuário para base Notion (ex. {"123":"dbA","456":"dbB"})
 
 Outputs:
   WebhookUrl:
