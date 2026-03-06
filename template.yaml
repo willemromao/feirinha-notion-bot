@@ -40,6 +40,7 @@ Resources:
           AUTHORIZED_USER_IDS: !Ref AuthorizedUserIds
           OPENAI_API_KEY: !Ref OpenAIApiKey
           NOTION_TOKEN: !Ref NotionToken
+          NOTION_TOKEN_BY_USER: !Ref NotionTokenByUser
           NOTION_DATABASE_ID: !Ref NotionDatabaseId
           NOTION_DATABASE_BY_USER: !Ref NotionDatabaseByUser
           DYNAMODB_TABLE_NAME: !Ref UpdatesTable
@@ -82,6 +83,12 @@ Parameters:
     Type: String
     NoEcho: true
     Description: Token de integração do Notion
+
+  NotionTokenByUser:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: JSON opcional para token Notion por usuário (ex. {"123":"tokenA","456":"tokenB"})
 
   NotionDatabaseId:
     Type: String

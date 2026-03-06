@@ -54,20 +54,43 @@ EMOJI_BY_KEYWORD = [
     ("sorvete", "🍨"),
 ]
 
+PROPERTY_ALIASES = {
+    "Produto": ["Produto"],
+    "Data": ["Data"],
+    "Categoria": ["Categoria"],
+    "Tipo": ["Tipo"],
+    "Qnt": ["Qnt.", "Qnt", "Quantidade"],
+    "Valor": ["Valor", "Preço", "Preco", "Valor Total", "Preço Total", "Preco Total"],
+    "Desconto": ["Desconto", "Desc.", "Descontos"],
+    "FormaDePagamento": ["Forma de Pagamento", "FormaDePagamento", "Pagamento", "Forma Pagamento"],
+}
+
+EXPECTED_TYPES = {
+    "Produto": "title",
+    "Data": "date",
+    "Categoria": "select",
+    "Tipo": "rich_text",
+    "Qnt": "number",
+    "Valor": "number",
+    "Desconto": "number",
+    "FormaDePagamento": "select",
+}
+
 class NotionClient:
     """Cliente para inserir produtos na base Notion"""
 
-    def __init__(self, database_id: str | None = None):
-        token = os.environ.get('NOTION_TOKEN')
+    def __init__(self, database_id: str | None = None, token: str | None = None):
+        resolved_token = token or os.environ.get('NOTION_TOKEN')
         resolved_database_id = database_id or os.environ.get('NOTION_DATABASE_ID')
 
-        if not token:
+        if not resolved_token:
             raise ValueError("NOTION_TOKEN não configurada")
         if not resolved_database_id:
             raise ValueError("NOTION_DATABASE_ID não configurada")
 
-        self.client = Client(auth=token)
+        self.client = Client(auth=resolved_token)
         self.database_id = resolved_database_id
+        self.property_names = self._resolve_property_names()
 
     def insert_products(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -117,7 +140,7 @@ class NotionClient:
         )
 
         properties = {
-            "Produto": {
+            self.property_names["Produto"]: {
                 "title": [
                     {
                         "text": {
@@ -126,17 +149,17 @@ class NotionClient:
                     }
                 ]
             },
-            "Data": {
+            self.property_names["Data"]: {
                 "date": {
                     "start": product["Data"]
                 }
             },
-            "Categoria": {
+            self.property_names["Categoria"]: {
                 "select": {
                     "name": product["Categoria"]
                 }
             },
-            "Tipo": {
+            self.property_names["Tipo"]: {
                 "rich_text": [
                     {
                         "text": {
@@ -145,16 +168,16 @@ class NotionClient:
                     }
                 ]
             },
-            "Qnt.": {
+            self.property_names["Qnt"]: {
                 "number": product["Qnt"]
             },
-            "Valor": {
+            self.property_names["Valor"]: {
                 "number": product["Valor"]
             },
-            "Desconto": {
+            self.property_names["Desconto"]: {
                 "number": product["Desconto"]
             },
-            "Forma de Pagamento": {
+            self.property_names["FormaDePagamento"]: {
                 "select": {
                     "name": product["FormaDePagamento"]
                 }
@@ -201,3 +224,56 @@ class NotionClient:
                     cleaned = cleaned.replace(word, word.lower())
 
         return cleaned
+
+    def _resolve_property_names(self) -> Dict[str, str]:
+        """
+        Resolve os nomes reais das propriedades no database, aceitando aliases.
+        Isso permite usar bases com variações de nomenclatura (ex.: Valor vs Preço).
+        """
+        database = self.client.databases.retrieve(self.database_id)
+        db_properties = database.get("properties", {})
+
+        resolved: Dict[str, str] = {}
+        for logical_name, aliases in PROPERTY_ALIASES.items():
+            expected_type = EXPECTED_TYPES[logical_name]
+            selected_name = None
+
+            # 1) Prioriza aliases com tipo correto
+            for alias in aliases:
+                prop = db_properties.get(alias)
+                if prop and prop.get("type") == expected_type:
+                    selected_name = alias
+                    break
+
+            # 2) Se não achou por alias, tenta case-insensitive
+            if not selected_name:
+                alias_map = {a.lower(): a for a in aliases}
+                for actual_name, prop in db_properties.items():
+                    if actual_name.lower() in alias_map and prop.get("type") == expected_type:
+                        selected_name = actual_name
+                        break
+
+            # 3) Tenta comparação canônica (trim e espaços internos)
+            if not selected_name:
+                alias_canonical = {self._canonical_property_name(a) for a in aliases}
+                for actual_name, prop in db_properties.items():
+                    actual_canonical = self._canonical_property_name(actual_name)
+                    if actual_canonical in alias_canonical and prop.get("type") == expected_type:
+                        selected_name = actual_name
+                        break
+
+            if not selected_name:
+                raise ValueError(
+                    f"Propriedade obrigatória não encontrada para '{logical_name}' "
+                    f"(esperado tipo '{expected_type}', aliases: {aliases})"
+                )
+
+            resolved[logical_name] = selected_name
+
+        logger.info(f"Mapeamento de propriedades Notion: {resolved}")
+        return resolved
+
+    @staticmethod
+    def _canonical_property_name(name: str) -> str:
+        """Normaliza nome de propriedade para matching tolerante a espaços/case."""
+        return re.sub(r"\s+", " ", str(name or "")).strip().lower()

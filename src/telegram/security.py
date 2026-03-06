@@ -92,3 +92,33 @@ def get_user_notion_database_id(user_id: int) -> Optional[str]:
         return fallback_database
 
     return None
+
+
+def get_user_notion_token(user_id: int) -> Optional[str]:
+    """
+    Resolve o token do Notion por usuário.
+
+    Regras:
+    1) Se existir em NOTION_TOKEN_BY_USER (JSON {"<telegram_user_id>": "<notion_token>"}), usa esse valor.
+    2) NOTION_TOKEN só é aceito para AUTHORIZED_USER_ID (dono do bot).
+    3) Outros usuários sem mapeamento explícito não têm token configurado.
+    """
+    mapping_raw = os.environ.get("NOTION_TOKEN_BY_USER", "").strip()
+    fallback_token = os.environ.get("NOTION_TOKEN", "").strip()
+    owner_user_id = os.environ.get("AUTHORIZED_USER_ID", "").strip()
+    user_id_str = str(user_id)
+
+    if mapping_raw:
+        try:
+            mapping = json.loads(mapping_raw)
+            if isinstance(mapping, dict):
+                token = str(mapping.get(user_id_str, "")).strip()
+                if token:
+                    return token
+        except json.JSONDecodeError:
+            logger.error("NOTION_TOKEN_BY_USER inválido (JSON malformado)")
+
+    if user_id_str == owner_user_id and fallback_token:
+        return fallback_token
+
+    return None

@@ -7,6 +7,7 @@ from telegram.security import (
     validate_telegram_request,
     is_authorized_user,
     get_user_notion_database_id,
+    get_user_notion_token,
 )
 from telegram.handler import TelegramHandler
 from processing.openai_client import OpenAIClient
@@ -131,8 +132,18 @@ def lambda_handler(event, context):
             )
             return create_response(200, {"ok": False, "error": "Notion database not configured for user"})
 
+        notion_token = get_user_notion_token(user_id)
+        if not notion_token:
+            logger.error(f"Nenhum token Notion configurado para usuário {user_id}")
+            telegram.send_message(
+                chat_id,
+                "❌ Token do Notion não configurado para seu usuário.",
+                message_id
+            )
+            return create_response(200, {"ok": False, "error": "Notion token not configured for user"})
+
         # Insere no Notion
-        notion_client = NotionClient(database_id=notion_database_id)
+        notion_client = NotionClient(database_id=notion_database_id, token=notion_token)
         result = notion_client.insert_products(products)
 
         # Monta mensagem de resultado
