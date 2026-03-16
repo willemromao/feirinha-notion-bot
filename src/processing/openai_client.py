@@ -20,11 +20,13 @@ Campos obrigatórios:
 - Valor: Preço unitário ou total em Reais (apenas número, ex: 15.50)
 - Desconto: Valor do desconto (0 se nenhum)
 - Categoria: Escolha uma das categorias exatas: Extra, Básico, Óleos/condimentos, Padaria, Bebidas, Carnes/ovos, Frios, Lanches/besteiras, Temperos, Grãos/mel, Frutas, Legumes/verduras, Limpeza, Higiene
+- Emoji: Escolha exatamente 1 emoji que represente bem o produto
 
 Regras obrigatórias de formatação:
 - Nunca inclua peso/volume/unidade no campo Produto (ex: remover "480G", "1L", "KG", "UN", "PC")
 - Sempre coloque peso/volume/unidade no campo Tipo em texto descritivo
 - Nunca retorne Tipo apenas como "KG", "G", "ML", "L", "UN" ou similares
+- Retorne exatamente 1 emoji simples no campo Emoji
 - Preserve palavras inteiras no Produto (evite abreviações como "Bisc", "Mussarela Molfino Importad")
 - Corrija abreviações e truncamentos comuns do cupom fiscal para português natural no Produto
 - Quando o texto do cupom indicar "massa sem..." de macarrão, normalize como "Macarrão de Sêmola ..."
@@ -43,7 +45,8 @@ Retorne um array JSON com todos os produtos no formato:
     "Qnt": 1,
     "Valor": 10.50,
     "Desconto": 0,
-    "Categoria": "Básico"
+    "Categoria": "Básico",
+    "Emoji": "🥛"
   }
 ]
 

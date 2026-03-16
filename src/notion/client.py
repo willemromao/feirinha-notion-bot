@@ -6,6 +6,7 @@ import logging
 import re
 from typing import List, Dict, Any
 from notion_client import Client
+from processing.receipt_parser import ReceiptParser
 
 logger = logging.getLogger(__name__)
 
@@ -134,10 +135,7 @@ class NotionClient:
             product: Dicionário com dados validados do produto
         """
         product_name = self._normalize_product_name(product["Produto"])
-        product_emoji = self._pick_product_emoji(
-            product_name=product_name,
-            category=product["Categoria"],
-        )
+        product_emoji = self._resolve_product_emoji(product, product_name)
 
         properties = {
             self.property_names["Produto"]: {
@@ -188,6 +186,18 @@ class NotionClient:
             parent={"database_id": self.database_id},
             icon={"type": "emoji", "emoji": product_emoji},
             properties=properties
+        )
+
+    @staticmethod
+    def _resolve_product_emoji(product: Dict[str, Any], product_name: str) -> str:
+        """Usa o emoji vindo do modelo quando válido; caso contrário usa fallback local."""
+        emoji = str(product.get("Emoji", "")).strip()
+        if ReceiptParser.is_valid_emoji(emoji):
+            return emoji
+
+        return NotionClient._pick_product_emoji(
+            product_name=product_name,
+            category=product["Categoria"],
         )
 
     @staticmethod

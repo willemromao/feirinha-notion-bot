@@ -170,6 +170,24 @@ class ReceiptParser:
         return re.sub(r"\s+", " ", text)
 
     @staticmethod
+    def is_valid_emoji(value: str) -> bool:
+        """Aceita um único emoji simples para usar como ícone no Notion."""
+        if not isinstance(value, str):
+            return False
+
+        cleaned = value.strip()
+        if not cleaned:
+            return False
+
+        if len(cleaned) > 4:
+            return False
+
+        return any(
+            ord(char) >= 0x2600 or unicodedata.category(char) == "So"
+            for char in cleaned
+        )
+
+    @staticmethod
     def _extract_measure_from_product(product_name: str) -> Tuple[str, Optional[Dict[str, Any]]]:
         """
         Extrai indicador de embalagem/medida no final do nome do produto.
@@ -313,6 +331,10 @@ class ReceiptParser:
                 "Categoria": categoria,
                 "FormaDePagamento": payment_method
             }
+
+            emoji = str(product.get("Emoji", "")).strip()
+            if ReceiptParser.is_valid_emoji(emoji):
+                validated["Emoji"] = emoji
 
             return validated
 

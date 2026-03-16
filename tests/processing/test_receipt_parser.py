@@ -41,6 +41,7 @@ class ReceiptParserPaymentMethodTests(unittest.TestCase):
                 "Valor": 8.99,
                 "Desconto": 0,
                 "Categoria": "Básico",
+                "Emoji": "🥛",
             }
         ])
 
@@ -49,6 +50,26 @@ class ReceiptParserPaymentMethodTests(unittest.TestCase):
         self.assertIsNotNone(products)
         self.assertEqual(products[0]["FormaDePagamento"], "Pix")
         self.assertEqual(products[0]["Produto"], "Leite Integral")
+        self.assertEqual(products[0]["Emoji"], "🥛")
+
+    def test_parse_openai_response_ignores_invalid_emoji(self):
+        response = json.dumps([
+            {
+                "Data": "2026-03-16",
+                "Produto": "Tomate",
+                "Tipo": "KG",
+                "Qnt": 1,
+                "Valor": 10.0,
+                "Desconto": 0,
+                "Categoria": "Frutas",
+                "Emoji": "tomate",
+            }
+        ])
+
+        products = ReceiptParser.parse_openai_response(response, "pix")
+
+        self.assertIsNotNone(products)
+        self.assertNotIn("Emoji", products[0])
 
     def test_parse_openai_response_rejects_invalid_payment_method(self):
         response = json.dumps([
