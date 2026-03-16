@@ -56,6 +56,7 @@ def lambda_handler(event, context):
         chat_id = update_data["chat_id"]
         user_id = update_data["user_id"]
         message_id = update_data["message_id"]
+        payment_method = ReceiptParser.normalize_payment_method(update_data.get("caption", ""))
 
         # Verifica se já processamos este update_id (evita duplicatas)
         if update_id:
@@ -78,10 +79,20 @@ def lambda_handler(event, context):
 
         logger.info(f"Processando foto do usuário {user_id}")
 
+        if not payment_method:
+            valid_options = ", ".join(ReceiptParser.list_payment_methods())
+            telegram.send_message(
+                chat_id,
+                "❌ Envie a foto com a forma de pagamento na legenda.\n\n"
+                f"Opções válidas: {valid_options}",
+                message_id
+            )
+            return create_response(200, {"ok": False, "error": "Missing or invalid payment method"})
+
         # Envia mensagem de aguarde
         telegram.send_message(
             chat_id,
-            "⏳ Processando sua nota fiscal... Isso pode levar alguns segundos.",
+            f"⏳ Processando sua nota fiscal com pagamento em *{payment_method}*... Isso pode levar alguns segundos.",
             message_id
         )
 
@@ -109,7 +120,7 @@ def lambda_handler(event, context):
 
         # Parse e validação dos dados
         parser = ReceiptParser()
-        products = parser.parse_openai_response(extracted_data)
+        products = parser.parse_openai_response(extracted_data, payment_method)
 
         if not products:
             telegram.send_message(

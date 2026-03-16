@@ -4,6 +4,7 @@ Parser para processar e validar dados extraídos de comprovantes
 import json
 import logging
 import re
+import unicodedata
 from typing import List, Dict, Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,21 @@ VALID_PAYMENT_METHODS = [
     "Will", "Espécie", "Pix", "Débito - Inter", "Crédito - Inter",
     "Débito - Nubank", "Crédito - Nubank"
 ]
+
+PAYMENT_METHOD_ALIASES = {
+    "will": "Will",
+    "especie": "Espécie",
+    "dinheiro": "Espécie",
+    "pix": "Pix",
+    "debito inter": "Débito - Inter",
+    "inter debito": "Débito - Inter",
+    "credito inter": "Crédito - Inter",
+    "inter credito": "Crédito - Inter",
+    "debito nubank": "Débito - Nubank",
+    "nubank debito": "Débito - Nubank",
+    "credito nubank": "Crédito - Nubank",
+    "nubank credito": "Crédito - Nubank",
+}
 
 UNIT_ALIASES = {
     "kg": "kg",
@@ -68,17 +84,23 @@ class ReceiptParser:
     """Parser para validar e estruturar dados de comprovantes"""
 
     @staticmethod
-    def parse_openai_response(response: str) -> Optional[List[Dict[str, Any]]]:
+    def parse_openai_response(response: str, payment_method: str) -> Optional[List[Dict[str, Any]]]:
         """
         Faz parse da resposta JSON da OpenAI e valida os dados
 
         Args:
             response: String JSON retornada pela OpenAI
+            payment_method: Forma de pagamento já validada externamente
 
         Returns:
             Lista de produtos validados ou None em caso de erro
         """
         try:
+            normalized_payment_method = ReceiptParser.normalize_payment_method(payment_method)
+            if not normalized_payment_method:
+                logger.error("Forma de pagamento inválida para o parse")
+                return None
+
             # Remove possíveis marcadores markdown
             cleaned_response = response.strip()
             if cleaned_response.startswith("```json"):
@@ -99,7 +121,7 @@ class ReceiptParser:
             # Valida cada produto
             validated_products = []
             for idx, product in enumerate(products):
-                validated = ReceiptParser._validate_product(product, idx)
+                validated = ReceiptParser._validate_product(product, idx, normalized_payment_method)
                 if validated:
                     validated_products.append(validated)
 
@@ -117,6 +139,35 @@ class ReceiptParser:
         except Exception as e:
             logger.error(f"Erro inesperado ao processar resposta: {e}")
             return None
+
+    @staticmethod
+    def normalize_payment_method(raw_payment_method: str) -> Optional[str]:
+        """Normaliza texto livre para uma forma de pagamento válida."""
+        normalized = ReceiptParser._normalize_free_text(raw_payment_method)
+        if not normalized:
+            return None
+
+        if normalized in PAYMENT_METHOD_ALIASES:
+            return PAYMENT_METHOD_ALIASES[normalized]
+
+        for alias, payment_method in PAYMENT_METHOD_ALIASES.items():
+            if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", normalized):
+                return payment_method
+
+        return None
+
+    @staticmethod
+    def list_payment_methods() -> List[str]:
+        """Retorna os valores oficiais aceitos pelo Notion."""
+        return VALID_PAYMENT_METHODS.copy()
+
+    @staticmethod
+    def _normalize_free_text(value: str) -> str:
+        """Remove acentos e pontuação para matching tolerante."""
+        text = unicodedata.normalize("NFKD", str(value or ""))
+        text = "".join(char for char in text if not unicodedata.combining(char))
+        text = re.sub(r"[^a-zA-Z0-9]+", " ", text).strip().lower()
+        return re.sub(r"\s+", " ", text)
 
     @staticmethod
     def _extract_measure_from_product(product_name: str) -> Tuple[str, Optional[Dict[str, Any]]]:
@@ -207,7 +258,11 @@ class ReceiptParser:
         return cleaned_name
 
     @staticmethod
-    def _validate_product(product: Dict[str, Any], index: int) -> Optional[Dict[str, Any]]:
+    def _validate_product(
+        product: Dict[str, Any],
+        index: int,
+        payment_method: str,
+    ) -> Optional[Dict[str, Any]]:
         """
         Valida campos individuais de um produto
 
@@ -220,7 +275,7 @@ class ReceiptParser:
         """
         try:
             # Campos obrigatórios
-            required_fields = ["Data", "Produto", "Tipo", "Qnt", "Valor", "Desconto", "Categoria", "FormaDePagamento"]
+            required_fields = ["Data", "Produto", "Tipo", "Qnt", "Valor", "Desconto", "Categoria"]
             for field in required_fields:
                 if field not in product:
                     logger.warning(f"Produto {index}: campo '{field}' ausente")
@@ -233,12 +288,9 @@ class ReceiptParser:
                 # Tenta mapear para categoria válida (fallback)
                 categoria = "Extra"
 
-            # Valida forma de pagamento
-            forma_pagamento = product["FormaDePagamento"]
-            if forma_pagamento not in VALID_PAYMENT_METHODS:
-                logger.warning(f"Produto {index}: forma de pagamento inválida '{forma_pagamento}'")
-                # Fallback para Will
-                forma_pagamento = "Will"
+            if payment_method not in VALID_PAYMENT_METHODS:
+                logger.warning(f"Produto {index}: forma de pagamento inválida '{payment_method}'")
+                return None
 
             # Valida tipos numéricos
             qnt = float(product["Qnt"])
@@ -259,7 +311,7 @@ class ReceiptParser:
                 "Valor": valor,
                 "Desconto": desconto,
                 "Categoria": categoria,
-                "FormaDePagamento": forma_pagamento
+                "FormaDePagamento": payment_method
             }
 
             return validated

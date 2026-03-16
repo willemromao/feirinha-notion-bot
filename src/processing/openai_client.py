@@ -20,7 +20,6 @@ Campos obrigatórios:
 - Valor: Preço unitário ou total em Reais (apenas número, ex: 15.50)
 - Desconto: Valor do desconto (0 se nenhum)
 - Categoria: Escolha uma das categorias exatas: Extra, Básico, Óleos/condimentos, Padaria, Bebidas, Carnes/ovos, Frios, Lanches/besteiras, Temperos, Grãos/mel, Frutas, Legumes/verduras, Limpeza, Higiene
-- Forma de Pagamento: Extraia do comprovante. Opções exatas: Will, Espécie, Pix, Débito - Inter, Crédito - Inter, Débito - Nubank, Crédito - Nubank
 
 Regras obrigatórias de formatação:
 - Nunca inclua peso/volume/unidade no campo Produto (ex: remover "480G", "1L", "KG", "UN", "PC")
@@ -44,8 +43,7 @@ Retorne um array JSON com todos os produtos no formato:
     "Qnt": 1,
     "Valor": 10.50,
     "Desconto": 0,
-    "Categoria": "Básico",
-    "FormaDePagamento": "Pix"
+    "Categoria": "Básico"
   }
 ]
 

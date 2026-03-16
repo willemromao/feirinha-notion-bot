@@ -130,8 +130,9 @@ Você deve ver `"url": "<WEBHOOK_URL>"` na resposta.
 2. Busque pelo nome do seu bot
 3. Envie `/start` para iniciar a conversa
 4. Tire uma foto de um comprovante de compra ou envie uma imagem
-5. Aguarde a resposta do bot
-6. Verifique os produtos no Notion
+5. Na legenda da foto, informe a forma de pagamento. Exemplos: `Pix`, `Débito - Inter`, `credito nubank`, `pagamento: espécie`
+6. Aguarde a resposta do bot
+7. Verifique os produtos no Notion
 
 ## 6. Monitorar
 
@@ -170,6 +171,10 @@ O webhook não precisa ser reconfigurado.
 ### Erro ao processar imagem
 - Verifique se há créditos na conta OpenAI
 - Verifique os logs da Lambda para detalhes do erro
+
+### Erro de forma de pagamento inválida
+- Envie novamente a foto com a forma de pagamento na legenda
+- Valores aceitos: `Will`, `Espécie`, `Pix`, `Débito - Inter`, `Crédito - Inter`, `Débito - Nubank`, `Crédito - Nubank`
 
 ### Erro ao inserir no Notion
 - Verifique se a integração está conectada à base

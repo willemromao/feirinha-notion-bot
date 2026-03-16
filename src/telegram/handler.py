@@ -49,7 +49,8 @@ class TelegramHandler:
                 "chat_id": message["chat"]["id"],
                 "user_id": message["from"]["id"],
                 "message_id": message["message_id"],
-                "photo": message["photo"]
+                "photo": message["photo"],
+                "caption": message.get("caption", ""),
             }
 
         except json.JSONDecodeError as e:
