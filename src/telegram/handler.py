@@ -33,7 +33,6 @@ class TelegramHandler:
         try:
             update = json.loads(body)
 
-            # Verifica se é uma mensagem com foto
             if "message" not in update:
                 logger.info("Update não contém mensagem")
                 return None
@@ -71,13 +70,11 @@ class TelegramHandler:
             Bytes da imagem ou None em caso de erro
         """
         try:
-            # Pega a foto de maior resolução (última do array)
             largest_photo = photo_array[-1]
             file_id = largest_photo["file_id"]
 
             logger.info(f"Baixando foto file_id={file_id}")
 
-            # Obtém informações do arquivo
             with httpx.Client() as client:
                 response = client.get(f"{self.base_url}/getFile?file_id={file_id}")
                 response.raise_for_status()
@@ -90,7 +87,6 @@ class TelegramHandler:
             file_path = file_info["result"]["file_path"]
             file_url = f"https://api.telegram.org/file/bot{self.bot_token}/{file_path}"
 
-            # Baixa o arquivo
             with httpx.Client() as client:
                 response = client.get(file_url)
                 response.raise_for_status()

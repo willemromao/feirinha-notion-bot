@@ -9,51 +9,7 @@ from notion_client import Client
 from processing.receipt_parser import ReceiptParser
 
 logger = logging.getLogger(__name__)
-
-EMOJI_BY_CATEGORY = {
-    "Extra": "🧾",
-    "Básico": "🥫",
-    "Óleos/condimentos": "🧂",
-    "Padaria": "🥖",
-    "Bebidas": "🥤",
-    "Carnes/ovos": "🥩",
-    "Frios": "🧀",
-    "Lanches/besteiras": "🍫",
-    "Temperos": "🌿",
-    "Grãos/mel": "🌾",
-    "Frutas": "🍎",
-    "Legumes/verduras": "🥕",
-    "Limpeza": "🧴",
-    "Higiene": "🧼",
-}
-
-EMOJI_BY_KEYWORD = [
-    ("sardinha", "🐟"),
-    ("atum", "🐟"),
-    ("peixe", "🐟"),
-    ("frango", "🍗"),
-    ("carne", "🥩"),
-    ("ovo", "🥚"),
-    ("pão", "🥖"),
-    ("queijo", "🧀"),
-    ("presunto", "🥓"),
-    ("iog", "🥛"),
-    ("leite", "🥛"),
-    ("café", "☕"),
-    ("arroz", "🍚"),
-    ("feijão", "🫘"),
-    ("macarrão", "🍝"),
-    ("molho", "🍅"),
-    ("tomate", "🍅"),
-    ("banana", "🍌"),
-    ("maçã", "🍎"),
-    ("batata", "🥔"),
-    ("cebola", "🧅"),
-    ("alho", "🧄"),
-    ("chocolate", "🍫"),
-    ("bisco", "🍪"),
-    ("sorvete", "🍨"),
-]
+DEFAULT_PRODUCT_EMOJI = "🛒"
 
 PROPERTY_ALIASES = {
     "Produto": ["Produto"],
@@ -103,9 +59,9 @@ class NotionClient:
         Returns:
             Dicionário com resultado da operação:
             {
-                "success": int,  # Quantidade de produtos inseridos com sucesso
-                "failed": int,   # Quantidade de falhas
-                "errors": List[str]  # Lista de mensagens de erro
+                "success": int,
+                "failed": int,
+                "errors": List[str]
             }
         """
         result = {
@@ -135,7 +91,7 @@ class NotionClient:
             product: Dicionário com dados validados do produto
         """
         product_name = self._normalize_product_name(product["Produto"])
-        product_emoji = self._resolve_product_emoji(product, product_name)
+        product_emoji = self._resolve_product_emoji(product)
 
         properties = {
             self.property_names["Produto"]: {
@@ -189,27 +145,13 @@ class NotionClient:
         )
 
     @staticmethod
-    def _resolve_product_emoji(product: Dict[str, Any], product_name: str) -> str:
-        """Usa o emoji vindo do modelo quando válido; caso contrário usa fallback local."""
+    def _resolve_product_emoji(product: Dict[str, Any]) -> str:
+        """Usa o emoji vindo do modelo quando válido; caso contrário usa ícone neutro."""
         emoji = str(product.get("Emoji", "")).strip()
         if ReceiptParser.is_valid_emoji(emoji):
             return emoji
 
-        return NotionClient._pick_product_emoji(
-            product_name=product_name,
-            category=product["Categoria"],
-        )
-
-    @staticmethod
-    def _pick_product_emoji(product_name: str, category: str) -> str:
-        """Seleciona emoji do item com base em palavra-chave e categoria."""
-        normalized_name = product_name.lower()
-
-        for keyword, emoji in EMOJI_BY_KEYWORD:
-            if keyword in normalized_name:
-                return emoji
-
-        return EMOJI_BY_CATEGORY.get(category, "🛒")
+        return DEFAULT_PRODUCT_EMOJI
 
     @staticmethod
     def _normalize_product_name(product_name: str) -> str:
@@ -222,14 +164,12 @@ class NotionClient:
         if not cleaned:
             return cleaned
 
-        # Heurística: OCR costuma enviar tudo em caixa alta.
         letters = [c for c in cleaned if c.isalpha()]
         if letters:
             upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
             if upper_ratio > 0.85:
                 cleaned = cleaned.lower().title()
 
-                # Ajustes simples para conectivos comuns em PT-BR.
                 for word in [" De ", " Da ", " Do ", " Das ", " Dos ", " E "]:
                     cleaned = cleaned.replace(word, word.lower())
 
@@ -248,14 +188,12 @@ class NotionClient:
             expected_type = EXPECTED_TYPES[logical_name]
             selected_name = None
 
-            # 1) Prioriza aliases com tipo correto
             for alias in aliases:
                 prop = db_properties.get(alias)
                 if prop and prop.get("type") == expected_type:
                     selected_name = alias
                     break
 
-            # 2) Se não achou por alias, tenta case-insensitive
             if not selected_name:
                 alias_map = {a.lower(): a for a in aliases}
                 for actual_name, prop in db_properties.items():
@@ -263,7 +201,6 @@ class NotionClient:
                         selected_name = actual_name
                         break
 
-            # 3) Tenta comparação canônica (trim e espaços internos)
             if not selected_name:
                 alias_canonical = {self._canonical_property_name(a) for a in aliases}
                 for actual_name, prop in db_properties.items():

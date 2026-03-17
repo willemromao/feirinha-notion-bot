@@ -76,7 +76,6 @@ class OpenAIClient:
             String JSON com array de produtos ou None em caso de erro
         """
         try:
-            # Codifica imagem em base64
             image_base64 = base64.b64encode(image_bytes).decode('utf-8')
 
             logger.info("Enviando imagem para OpenAI...")
@@ -125,7 +124,6 @@ class OpenAIClient:
 
             result = response_json.get("output_text")
             if not result:
-                # Compatibilidade com formatos alternativos do Responses API
                 output = response_json.get("output", [])
                 texts = []
                 for item in output:
@@ -139,7 +137,6 @@ class OpenAIClient:
                 return None
 
             logger.info("Dados extraídos com sucesso da OpenAI")
-            logger.debug(f"Resposta OpenAI: {result}")
 
             return result
 

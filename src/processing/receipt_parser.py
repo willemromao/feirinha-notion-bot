@@ -101,7 +101,6 @@ class ReceiptParser:
                 logger.error("Forma de pagamento inválida para o parse")
                 return None
 
-            # Remove possíveis marcadores markdown
             cleaned_response = response.strip()
             if cleaned_response.startswith("```json"):
                 cleaned_response = cleaned_response[7:]
@@ -111,7 +110,6 @@ class ReceiptParser:
                 cleaned_response = cleaned_response[:-3]
             cleaned_response = cleaned_response.strip()
 
-            # Parse JSON
             products = json.loads(cleaned_response)
 
             if not isinstance(products, list):
@@ -120,7 +118,6 @@ class ReceiptParser:
 
             logger.info(f"OpenAI retornou {len(products)} item(ns) brutos")
 
-            # Valida cada produto
             validated_products = []
             for idx, product in enumerate(products):
                 validated = ReceiptParser._validate_product(product, idx, normalized_payment_method)
@@ -242,7 +239,6 @@ class ReceiptParser:
                 return f"{package} de {amount} {unit}"
             return f"No peso - {amount} {unit}"
 
-        # Se vier apenas unidade (ex.: KG), converte para forma descritiva.
         unit_only = UNIT_ALIASES.get(cleaned_tipo.lower()) if cleaned_tipo else None
         if unit_only:
             if unit_only in {"kg", "g"}:
@@ -294,25 +290,21 @@ class ReceiptParser:
             Produto validado ou None se inválido
         """
         try:
-            # Campos obrigatórios
             required_fields = ["Data", "Produto", "Qnt", "Valor", "Categoria"]
             for field in required_fields:
                 if field not in product:
                     logger.warning(f"Produto {index}: campo '{field}' ausente")
                     return None
 
-            # Valida categoria
             categoria = product["Categoria"]
             if categoria not in VALID_CATEGORIES:
                 logger.warning(f"Produto {index}: categoria inválida '{categoria}'")
-                # Tenta mapear para categoria válida (fallback)
                 categoria = "Extra"
 
             if payment_method not in VALID_PAYMENT_METHODS:
                 logger.warning(f"Produto {index}: forma de pagamento inválida '{payment_method}'")
                 return None
 
-            # Valida tipos numéricos
             qnt = float(product["Qnt"])
             valor = float(product["Valor"])
             desconto = float(product.get("Desconto", 0))
@@ -322,7 +314,6 @@ class ReceiptParser:
             product_name = ReceiptParser._clean_product_name(product_name)
             normalized_type = ReceiptParser._normalize_type(product.get("Tipo", ""), qnt, extracted_measure)
 
-            # Monta produto validado
             validated = {
                 "Data": product["Data"],
                 "Produto": product_name,

@@ -15,7 +15,6 @@ from processing.receipt_parser import ReceiptParser
 from notion.client import NotionClient
 from storage.dynamodb_client import DynamoDBClient
 
-# Configuração de logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -57,13 +56,11 @@ def lambda_handler(event, context):
     logger.info("Lambda invocada")
 
     try:
-        # Valida request do Telegram (secret token)
         headers = event.get("headers", {})
         if not validate_telegram_request(headers):
             logger.warning("Request não autorizado (token inválido)")
             return create_response(200, {"ok": False, "error": "Unauthorized"})
 
-        # Parse do body
         body = event.get("body", "{}")
         telegram = TelegramHandler()
         update_data = telegram.parse_update(body)
@@ -78,17 +75,14 @@ def lambda_handler(event, context):
         message_id = update_data["message_id"]
         payment_method = ReceiptParser.normalize_payment_method(update_data.get("caption", ""))
 
-        # Verifica se já processamos este update_id (evita duplicatas)
         if update_id:
             db_client = DynamoDBClient()
             if db_client.is_processed(update_id):
                 logger.info(f"Update {update_id} já processado, ignorando")
                 return create_response(200, {"ok": True, "message": "Already processed"})
-            
-            # Marca como processado ANTES de processar (evita race condition)
+
             db_client.mark_as_processed(update_id)
 
-        # Valida usuário autorizado
         if not is_authorized_user(user_id):
             telegram.send_message(
                 chat_id,
@@ -109,14 +103,12 @@ def lambda_handler(event, context):
             )
             return create_response(200, {"ok": False, "error": "Missing or invalid payment method"})
 
-        # Envia mensagem de aguarde
         telegram.send_message(
             chat_id,
             f"⏳ Processando sua nota fiscal com pagamento em *{payment_method}*... Isso pode levar alguns segundos.",
             message_id
         )
 
-        # Baixa a foto
         image_bytes = telegram.download_photo(update_data["photo"])
         if not image_bytes:
             telegram.send_message(
@@ -126,7 +118,6 @@ def lambda_handler(event, context):
             )
             return create_response(200, {"ok": False, "error": "Failed to download image"})
 
-        # Processa com OpenAI
         openai_client = OpenAIClient()
         extracted_data = openai_client.extract_receipt_data(image_bytes)
 
@@ -138,7 +129,6 @@ def lambda_handler(event, context):
             )
             return create_response(200, {"ok": False, "error": "OpenAI processing failed"})
 
-        # Parse e validação dos dados
         parser = ReceiptParser()
         products = parser.parse_openai_response(extracted_data, payment_method)
 
@@ -160,7 +150,6 @@ def lambda_handler(event, context):
 
         logger.info(f"Extraídos {len(products)} produtos")
 
-        # Resolve base do Notion por usuário
         notion_database_id = get_user_notion_database_id(user_id)
         if not notion_database_id:
             logger.error(f"Nenhuma base Notion configurada para usuário {user_id}")
@@ -181,11 +170,9 @@ def lambda_handler(event, context):
             )
             return create_response(200, {"ok": False, "error": "Notion token not configured for user"})
 
-        # Insere no Notion
         notion_client = NotionClient(database_id=notion_database_id, token=notion_token)
         result = notion_client.insert_products(products)
 
-        # Monta mensagem de resultado
         success_msg = f"✅ *{result['success']} produtos cadastrados com sucesso!*"
 
         if result['failed'] > 0:
@@ -205,7 +192,6 @@ def lambda_handler(event, context):
     except Exception as e:
         logger.error(f"Erro crítico: {e}", exc_info=True)
 
-        # Tenta notificar o usuário se possível
         try:
             if 'telegram' in locals() and 'chat_id' in locals():
                 telegram.send_message(
