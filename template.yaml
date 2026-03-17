@@ -4,7 +4,7 @@ Description: Bot Telegram para cadastro automático de compras no Notion
 
 Globals:
   Function:
-    Timeout: 60
+    Timeout: 180
     MemorySize: 512
     Runtime: python3.12
     Architectures:

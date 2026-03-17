@@ -118,6 +118,8 @@ class ReceiptParser:
                 logger.error("Resposta da OpenAI não é um array")
                 return None
 
+            logger.info(f"OpenAI retornou {len(products)} item(ns) brutos")
+
             # Valida cada produto
             validated_products = []
             for idx, product in enumerate(products):
@@ -293,7 +295,7 @@ class ReceiptParser:
         """
         try:
             # Campos obrigatórios
-            required_fields = ["Data", "Produto", "Tipo", "Qnt", "Valor", "Desconto", "Categoria"]
+            required_fields = ["Data", "Produto", "Qnt", "Valor", "Categoria"]
             for field in required_fields:
                 if field not in product:
                     logger.warning(f"Produto {index}: campo '{field}' ausente")

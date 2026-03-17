@@ -5,7 +5,7 @@ Bot Telegram serverless que automatiza o cadastro de compras de supermercado no 
 ## Funcionalidades
 
 - 📸 Envie foto do comprovante via Telegram com a forma de pagamento na legenda
-- 🤖 IA (OpenAI GPT-4o-mini) extrai dados estruturados
+- 🤖 IA (OpenAI GPT-5 mini) extrai dados estruturados
 - 📊 Cadastro automático no Notion
 - 🔒 Segurança com validação de usuário autorizado
 - ☁️ Arquitetura serverless AWS (sem servidor 24h)
@@ -168,7 +168,7 @@ feirinha-notion-bot/
 Para uso pessoal (5-10 notas/mês):
 - **AWS Lambda**: Gratuito (dentro do free tier)
 - **API Gateway**: Gratuito (dentro do free tier)
-- **OpenAI**: ~$0.01-0.05 por imagem (GPT-4o-mini)
+- **OpenAI**: custo variável por imagem (GPT-5 mini)
 - **Total**: < $5/mês
 
 ## Segurança

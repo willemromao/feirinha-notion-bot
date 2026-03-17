@@ -71,6 +71,23 @@ class ReceiptParserPaymentMethodTests(unittest.TestCase):
         self.assertIsNotNone(products)
         self.assertNotIn("Emoji", products[0])
 
+    def test_parse_openai_response_accepts_missing_tipo_and_desconto(self):
+        response = json.dumps([
+            {
+                "Data": "2026-03-16",
+                "Produto": "Arroz Branco 1KG",
+                "Qnt": 1,
+                "Valor": 7.5,
+                "Categoria": "Básico",
+            }
+        ])
+
+        products = ReceiptParser.parse_openai_response(response, "pix")
+
+        self.assertIsNotNone(products)
+        self.assertEqual(products[0]["Desconto"], 0.0)
+        self.assertEqual(products[0]["Tipo"], "No peso - 1 kg")
+
     def test_parse_openai_response_rejects_invalid_payment_method(self):
         response = json.dumps([
             {

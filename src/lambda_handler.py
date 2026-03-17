@@ -23,6 +23,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _looks_like_truncated_json(payload: str) -> bool:
+    """Detecta respostas JSON provavelmente truncadas da OpenAI."""
+    text = str(payload or "").strip()
+    if not text:
+        return False
+
+    if text.startswith("```json"):
+        text = text[7:]
+    if text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+
+    if not text.startswith("["):
+        return False
+
+    return text.count("[") > text.count("]") or text.count("{") > text.count("}")
+
+
 def lambda_handler(event, context):
     """
     Handler principal da função Lambda
@@ -123,6 +143,14 @@ def lambda_handler(event, context):
         products = parser.parse_openai_response(extracted_data, payment_method)
 
         if not products:
+            if _looks_like_truncated_json(extracted_data):
+                telegram.send_message(
+                    chat_id,
+                    "❌ A IA retornou uma resposta incompleta ao processar a nota. Tente enviar a imagem novamente.",
+                    message_id
+                )
+                return create_response(200, {"ok": False, "error": "Truncated OpenAI JSON response"})
+
             telegram.send_message(
                 chat_id,
                 "❌ Não foi possível extrair produtos da nota fiscal. Verifique se a imagem está legível.",

@@ -26,10 +26,13 @@ Regras obrigatórias de formatação:
 - Nunca inclua peso/volume/unidade no campo Produto (ex: remover "480G", "1L", "KG", "UN", "PC")
 - Sempre coloque peso/volume/unidade no campo Tipo em texto descritivo
 - Nunca retorne Tipo apenas como "KG", "G", "ML", "L", "UN" ou similares
+- Se não conseguir inferir o Tipo com segurança, retorne uma string vazia em vez de omitir o campo
+- Se não houver desconto claro, retorne Desconto como 0
 - Retorne exatamente 1 emoji simples no campo Emoji
 - Preserve palavras inteiras no Produto (evite abreviações como "Bisc", "Mussarela Molfino Importad")
 - Corrija abreviações e truncamentos comuns do cupom fiscal para português natural no Produto
 - Quando o texto do cupom indicar "massa sem..." de macarrão, normalize como "Macarrão de Sêmola ..."
+- Em notas com muitos produtos, priorize retornar todos os itens com campos completos; nunca retorne array vazio se houver itens legíveis
 
 Exemplos de normalização esperada:
 - "Bisc Rech Amori Richester" -> "Biscoito Recheado Amori Richester"
@@ -79,7 +82,7 @@ class OpenAIClient:
             logger.info("Enviando imagem para OpenAI...")
 
             payload = {
-                "model": "gpt-5-nano",
+                "model": "gpt-5-mini",
                 "instructions": SYSTEM_PROMPT,
                 "input": [
                     {
@@ -96,9 +99,9 @@ class OpenAIClient:
                         ]
                     }
                 ],
-                "max_output_tokens": 4000,
+                "max_output_tokens": 100000,
                 "reasoning": {
-                    "effort": "low"
+                    "effort": "low",
                 }
             }
 
@@ -110,7 +113,7 @@ class OpenAIClient:
                         "Content-Type": "application/json"
                     },
                     json=payload,
-                    timeout=60.0
+                    timeout=120.0
                 )
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:
