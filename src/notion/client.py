@@ -1,7 +1,6 @@
 """
 Cliente para integração com Notion API
 """
-import os
 import logging
 import re
 from typing import List, Dict, Any
@@ -36,17 +35,14 @@ EXPECTED_TYPES = {
 class NotionClient:
     """Cliente para inserir produtos na base Notion"""
 
-    def __init__(self, database_id: str | None = None, token: str | None = None):
-        resolved_token = token or os.environ.get('NOTION_TOKEN')
-        resolved_database_id = database_id or os.environ.get('NOTION_DATABASE_ID')
+    def __init__(self, database_id: str, token: str):
+        if not token:
+            raise ValueError("token do Notion não configurado")
+        if not database_id:
+            raise ValueError("database_id do Notion não configurado")
 
-        if not resolved_token:
-            raise ValueError("NOTION_TOKEN não configurada")
-        if not resolved_database_id:
-            raise ValueError("NOTION_DATABASE_ID não configurada")
-
-        self.client = Client(auth=resolved_token)
-        self.database_id = resolved_database_id
+        self.client = Client(auth=token)
+        self.database_id = database_id
         self.property_names = self._resolve_property_names()
 
     def insert_products(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:

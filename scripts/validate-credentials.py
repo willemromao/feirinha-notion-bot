@@ -4,6 +4,7 @@ Script para validar credenciais antes do deploy
 """
 import sys
 import os
+import json
 from pathlib import Path
 
 # Adiciona o diretório src ao path
@@ -25,8 +26,8 @@ def validate_env_vars():
         "TELEGRAM_BOT_TOKEN",
         "TELEGRAM_SECRET_TOKEN",
         "OPENAI_API_KEY",
-        "NOTION_TOKEN",
-        "NOTION_DATABASE_ID"
+        "AUTHORIZED_USER_IDS",
+        "NOTION_CONFIG_BY_USER",
     ]
 
     print("🔍 Verificando variáveis de ambiente...")
@@ -40,20 +41,37 @@ def validate_env_vars():
             masked = value[:8] + "..." if len(value) > 8 else "***"
             print(f"  ✅ {var}: {masked}")
 
-    authorized_single = os.environ.get("AUTHORIZED_USER_ID", "").strip()
-    authorized_list = os.environ.get("AUTHORIZED_USER_IDS", "").strip()
-    if not authorized_single and not authorized_list:
-        missing.append("AUTHORIZED_USER_ID|AUTHORIZED_USER_IDS")
-        print("  ❌ AUTHORIZED_USER_ID/AUTHORIZED_USER_IDS: nenhum definido")
-    else:
-        shown = authorized_single or authorized_list
-        masked = shown[:8] + "..." if len(shown) > 8 else shown
-        print(f"  ✅ AUTHORIZED_USER_ID(S): {masked}")
-
     if missing:
         print(f"\n❌ Variáveis faltando: {', '.join(missing)}")
         print("\nCrie um arquivo .env com base no .env.example")
         return False
+
+    authorized_ids = {
+        uid.strip()
+        for uid in os.environ.get("AUTHORIZED_USER_IDS", "").split(",")
+        if uid.strip()
+    }
+
+    try:
+        notion_config = json.loads(os.environ.get("NOTION_CONFIG_BY_USER", ""))
+    except json.JSONDecodeError:
+        print("\n❌ NOTION_CONFIG_BY_USER inválido (JSON malformado)")
+        return False
+
+    if not isinstance(notion_config, dict):
+        print("\n❌ NOTION_CONFIG_BY_USER inválido (esperado objeto JSON)")
+        return False
+
+    config_user_ids = set(notion_config.keys())
+    missing_config = sorted(authorized_ids - config_user_ids)
+    extra_config = sorted(config_user_ids - authorized_ids)
+
+    if missing_config:
+        print(f"\n❌ Usuários autorizados sem configuração Notion: {', '.join(missing_config)}")
+        return False
+
+    if extra_config:
+        print(f"\n⚠️  Usuários no NOTION_CONFIG_BY_USER não estão em AUTHORIZED_USER_IDS: {', '.join(extra_config)}")
 
     print("\n✅ Todas as variáveis de ambiente estão definidas\n")
     return True
@@ -104,59 +122,63 @@ def validate_openai():
 def validate_notion():
     """Valida credenciais do Notion"""
     print("\n📝 Validando Notion Integration...")
-    token = os.environ.get("NOTION_TOKEN")
-    database_id = os.environ.get("NOTION_DATABASE_ID")
-    by_user_raw = os.environ.get("NOTION_DATABASE_BY_USER", "").strip()
+    config_raw = os.environ.get("NOTION_CONFIG_BY_USER", "").strip()
 
     try:
-        client = Client(auth=token)
+        config_by_user = json.loads(config_raw)
+    except json.JSONDecodeError:
+        print("  ❌ NOTION_CONFIG_BY_USER inválido (JSON malformado)")
+        return False
 
-        database_ids = [database_id]
-        if by_user_raw:
-            import json
-            try:
-                mapping = json.loads(by_user_raw)
-                if isinstance(mapping, dict):
-                    database_ids.extend(str(v) for v in mapping.values() if str(v).strip())
-            except json.JSONDecodeError:
-                print("  ❌ NOTION_DATABASE_BY_USER inválido (JSON malformado)")
-                return False
+    if not isinstance(config_by_user, dict) or not config_by_user:
+        print("  ❌ NOTION_CONFIG_BY_USER inválido (esperado objeto JSON não vazio)")
+        return False
 
-        # Remove duplicados preservando ordem
-        unique_database_ids = list(dict.fromkeys(dbid for dbid in database_ids if dbid))
+    all_valid = True
 
-        # Tenta buscar informações do(s) banco(s) de dados
-        for idx, dbid in enumerate(unique_database_ids):
-            database = client.databases.retrieve(dbid)
-            db_name = database.get('title', [{}])[0].get('plain_text', 'Sem título')
-            prefix = "Base padrão" if idx == 0 else f"Base adicional {idx}"
-            print(f"  ✅ {prefix}: {db_name}")
-
-        # Valida propriedades
-        properties = database.get("properties", {})
-        required_props = {
-            "Produto": "title",
-            "Data": "date",
-            "Categoria": "select",
-            "Tipo": "rich_text",
-            "Qnt": "number",
-            "Valor": "number",
-            "Desconto": "number",
-            "Forma de Pagamento": "select"
-        }
-
-        print("\n  Verificando propriedades da base:")
-        all_valid = True
-        for prop_name, expected_type in required_props.items():
-            if prop_name not in properties:
-                print(f"    ❌ {prop_name}: não encontrada")
+    try:
+        for user_id, user_config in config_by_user.items():
+            if not isinstance(user_config, dict):
+                print(f"  ❌ Usuário {user_id}: configuração inválida (esperado objeto)")
                 all_valid = False
-            else:
-                prop_type = properties[prop_name].get("type")
-                if prop_type != expected_type:
-                    print(f"    ⚠️  {prop_name}: tipo {prop_type} (esperado: {expected_type})")
+                continue
+
+            token = str(user_config.get("token", "")).strip()
+            database_id = str(user_config.get("database_id", "")).strip()
+
+            if not token or not database_id:
+                print(f"  ❌ Usuário {user_id}: token/database_id ausente")
+                all_valid = False
+                continue
+
+            client = Client(auth=token)
+            database = client.databases.retrieve(database_id)
+            db_name = database.get('title', [{}])[0].get('plain_text', 'Sem título')
+            print(f"  ✅ Usuário {user_id}: {db_name}")
+
+            properties = database.get("properties", {})
+            required_props = {
+                "Produto": "title",
+                "Data": "date",
+                "Categoria": "select",
+                "Tipo": "rich_text",
+                "Qnt": "number",
+                "Valor": "number",
+                "Desconto": "number",
+                "Forma de Pagamento": "select"
+            }
+
+            print("     Verificando propriedades da base:")
+            for prop_name, expected_type in required_props.items():
+                if prop_name not in properties:
+                    print(f"       ❌ {prop_name}: não encontrada")
+                    all_valid = False
                 else:
-                    print(f"    ✅ {prop_name}: {prop_type}")
+                    prop_type = properties[prop_name].get("type")
+                    if prop_type != expected_type:
+                        print(f"       ⚠️  {prop_name}: tipo {prop_type} (esperado: {expected_type})")
+                    else:
+                        print(f"       ✅ {prop_name}: {prop_type}")
 
         return all_valid
 

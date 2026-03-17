@@ -44,17 +44,11 @@ def is_authorized_user(user_id: int) -> bool:
         bool: True se autorizado, False caso contrário
     """
     user_id_str = str(user_id)
-    authorized_single = os.environ.get('AUTHORIZED_USER_ID', '').strip()
     authorized_list_raw = os.environ.get('AUTHORIZED_USER_IDS', '').strip()
-
-    authorized_ids = set()
-    if authorized_single:
-        authorized_ids.add(authorized_single)
-    if authorized_list_raw:
-        authorized_ids.update(uid.strip() for uid in authorized_list_raw.split(",") if uid.strip())
+    authorized_ids = {uid.strip() for uid in authorized_list_raw.split(",") if uid.strip()}
 
     if not authorized_ids:
-        logger.error("AUTHORIZED_USER_ID/AUTHORIZED_USER_IDS não configurado")
+        logger.error("AUTHORIZED_USER_IDS não configurado")
         return False
 
     is_auth = user_id_str in authorized_ids
@@ -64,61 +58,47 @@ def is_authorized_user(user_id: int) -> bool:
     return is_auth
 
 
-def get_user_notion_database_id(user_id: int) -> Optional[str]:
+def get_user_notion_config(user_id: int) -> Optional[dict[str, str]]:
     """
-    Resolve o database do Notion por usuário.
+    Resolve a configuração Notion por usuário.
 
-    Regras:
-    1) Se existir em NOTION_DATABASE_BY_USER (JSON {"<telegram_user_id>": "<database_id>"}), usa esse valor.
-    2) NOTION_DATABASE_ID só é aceito para AUTHORIZED_USER_ID (dono do bot).
-    3) Outros usuários sem mapeamento explícito não têm base configurada.
+    Espera NOTION_CONFIG_BY_USER no formato:
+    {
+        "<telegram_user_id>": {
+            "database_id": "<database_id>",
+            "token": "<notion_token>"
+        }
+    }
     """
-    mapping_raw = os.environ.get("NOTION_DATABASE_BY_USER", "").strip()
-    fallback_database = os.environ.get("NOTION_DATABASE_ID", "").strip()
-    owner_user_id = os.environ.get("AUTHORIZED_USER_ID", "").strip()
+    config_raw = os.environ.get("NOTION_CONFIG_BY_USER", "").strip()
     user_id_str = str(user_id)
 
-    if mapping_raw:
-        try:
-            mapping = json.loads(mapping_raw)
-            if isinstance(mapping, dict):
-                database_id = str(mapping.get(user_id_str, "")).strip()
-                if database_id:
-                    return database_id
-        except json.JSONDecodeError:
-            logger.error("NOTION_DATABASE_BY_USER inválido (JSON malformado)")
+    if not config_raw:
+        logger.error("NOTION_CONFIG_BY_USER não configurado")
+        return None
 
-    if user_id_str == owner_user_id and fallback_database:
-        return fallback_database
+    try:
+        config_by_user = json.loads(config_raw)
+    except json.JSONDecodeError:
+        logger.error("NOTION_CONFIG_BY_USER inválido (JSON malformado)")
+        return None
 
-    return None
+    if not isinstance(config_by_user, dict):
+        logger.error("NOTION_CONFIG_BY_USER inválido (esperado objeto JSON)")
+        return None
 
+    user_config = config_by_user.get(user_id_str)
+    if not isinstance(user_config, dict):
+        return None
 
-def get_user_notion_token(user_id: int) -> Optional[str]:
-    """
-    Resolve o token do Notion por usuário.
+    database_id = str(user_config.get("database_id", "")).strip()
+    token = str(user_config.get("token", "")).strip()
 
-    Regras:
-    1) Se existir em NOTION_TOKEN_BY_USER (JSON {"<telegram_user_id>": "<notion_token>"}), usa esse valor.
-    2) NOTION_TOKEN só é aceito para AUTHORIZED_USER_ID (dono do bot).
-    3) Outros usuários sem mapeamento explícito não têm token configurado.
-    """
-    mapping_raw = os.environ.get("NOTION_TOKEN_BY_USER", "").strip()
-    fallback_token = os.environ.get("NOTION_TOKEN", "").strip()
-    owner_user_id = os.environ.get("AUTHORIZED_USER_ID", "").strip()
-    user_id_str = str(user_id)
+    if not database_id or not token:
+        logger.error(f"Configuração Notion incompleta para usuário {user_id}")
+        return None
 
-    if mapping_raw:
-        try:
-            mapping = json.loads(mapping_raw)
-            if isinstance(mapping, dict):
-                token = str(mapping.get(user_id_str, "")).strip()
-                if token:
-                    return token
-        except json.JSONDecodeError:
-            logger.error("NOTION_TOKEN_BY_USER inválido (JSON malformado)")
-
-    if user_id_str == owner_user_id and fallback_token:
-        return fallback_token
-
-    return None
+    return {
+        "database_id": database_id,
+        "token": token,
+    }

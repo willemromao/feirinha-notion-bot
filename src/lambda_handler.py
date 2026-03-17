@@ -6,8 +6,7 @@ import json
 from telegram.security import (
     validate_telegram_request,
     is_authorized_user,
-    get_user_notion_database_id,
-    get_user_notion_token,
+    get_user_notion_config,
 )
 from telegram.handler import TelegramHandler
 from processing.openai_client import OpenAIClient
@@ -150,27 +149,20 @@ def lambda_handler(event, context):
 
         logger.info(f"Extraídos {len(products)} produtos")
 
-        notion_database_id = get_user_notion_database_id(user_id)
-        if not notion_database_id:
-            logger.error(f"Nenhuma base Notion configurada para usuário {user_id}")
+        notion_config = get_user_notion_config(user_id)
+        if not notion_config:
+            logger.error(f"Nenhuma configuração Notion válida para usuário {user_id}")
             telegram.send_message(
                 chat_id,
-                "❌ Base do Notion não configurada para seu usuário.",
+                "❌ Configuração do Notion não encontrada para seu usuário.",
                 message_id
             )
-            return create_response(200, {"ok": False, "error": "Notion database not configured for user"})
+            return create_response(200, {"ok": False, "error": "Notion config not configured for user"})
 
-        notion_token = get_user_notion_token(user_id)
-        if not notion_token:
-            logger.error(f"Nenhum token Notion configurado para usuário {user_id}")
-            telegram.send_message(
-                chat_id,
-                "❌ Token do Notion não configurado para seu usuário.",
-                message_id
-            )
-            return create_response(200, {"ok": False, "error": "Notion token not configured for user"})
-
-        notion_client = NotionClient(database_id=notion_database_id, token=notion_token)
+        notion_client = NotionClient(
+            database_id=notion_config["database_id"],
+            token=notion_config["token"],
+        )
         result = notion_client.insert_products(products)
 
         success_msg = f"✅ *{result['success']} produtos cadastrados com sucesso!*"
