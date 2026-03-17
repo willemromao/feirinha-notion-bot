@@ -64,7 +64,7 @@ cd feirinha-notion-bot
 - **Desconto** (Number): Desconto aplicado
 - **Pago** (Formula): `prop("Valor") - prop("Desconto")`
 - **Categoria** (Select): Extra, Básico, Óleos/condimentos, Padaria, Bebidas, Carnes/ovos, Frios, Lanches/besteiras, Temperos, Grãos/mel, Frutas, Legumes/verduras, Limpeza, Higiene
-- **Forma de Pagamento** (Select): Will, Espécie, Pix, Débito - Inter, Crédito - Inter, Débito - Nubank, Crédito - Nubank
+- **Forma de Pagamento** (Select): Espécie, Pix, Débito - Inter, Crédito - Inter, Débito - Nubank, Crédito - Nubank
 
 ### 3. Crie o Bot no Telegram
 
@@ -114,6 +114,12 @@ Será solicitado:
 
 Após o deploy, a URL do webhook será exibida nos outputs. Configure:
 
+**Opção 1: script helper**
+```bash
+./scripts/setup-webhook.sh <BOT_TOKEN> <WEBHOOK_URL> <SECRET_TOKEN>
+```
+
+**Opção 2: manualmente**
 ```bash
 curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
@@ -169,7 +175,7 @@ Para uso pessoal (5-10 notas/mês):
 - **AWS Lambda**: Gratuito (dentro do free tier)
 - **API Gateway**: Gratuito (dentro do free tier)
 - **OpenAI**: custo variável por imagem (GPT-5 mini)
-- **Total**: < $5/mês
+- **Total**: < $1/mês
 
 ## Segurança
 
@@ -184,7 +190,7 @@ O bot implementa 3 camadas de segurança:
 ### Ver logs da Lambda
 
 ```bash
-sam logs -n TelegramBotFunction --tail
+sam logs --stack-name feirinha-notion-bot -n TelegramBotFunction --tail
 ```
 
 ### Testar localmente
@@ -195,7 +201,7 @@ cp .env.example .env
 # Edite o .env com suas credenciais
 
 # Execute teste local
-sam local invoke TelegramBotFunction -e event.json
+sam local invoke TelegramBotFunction -e event.example.json
 ```
 
 ### Verificar webhook
@@ -207,8 +213,35 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 ### Remover webhook (para debug)
 
 ```bash
-curl "https://api.telegram.org/bot<BOT_TOKEN>/deleteWebhook"
+./scripts/delete-webhook.sh <BOT_TOKEN>
 ```
+
+### Bot não responde
+
+1. Verifique se o webhook está configurado: `curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"`
+2. Verifique os logs da Lambda: `sam logs --stack-name feirinha-notion-bot -n TelegramBotFunction --tail`
+3. Teste a função diretamente com `sam local invoke`
+
+### Erro "User not authorized"
+
+- Verifique se o `AuthorizedUserId` está correto
+- Use [@userinfobot](https://t.me/userinfobot) para confirmar seu User ID
+
+### Erro de forma de pagamento inválida
+
+- Envie novamente a foto com a forma de pagamento na legenda
+- Valores aceitos: `Espécie`, `Pix`, `Débito - Inter`, `Crédito - Inter`, `Débito - Nubank`, `Crédito - Nubank`
+
+### Erro ao processar imagem
+
+- Verifique se há créditos na conta OpenAI
+- Verifique os logs da Lambda para detalhes do erro
+
+### Erro ao inserir no Notion
+
+- Verifique se a integração está conectada à base
+- Confirme que o schema da base está correto
+- Verifique os nomes exatos das propriedades
 
 ## Logs e Monitoramento
 
