@@ -274,6 +274,28 @@ class ReceiptParser:
         return cleaned_name
 
     @staticmethod
+    def _normalize_product_name(product_name: str) -> str:
+        """
+        Normaliza texto do produto:
+        - remove espaços duplicados
+        - se vier em caixa alta, converte para um title case legível
+        """
+        cleaned = re.sub(r"\s+", " ", str(product_name)).strip()
+        if not cleaned:
+            return cleaned
+
+        letters = [c for c in cleaned if c.isalpha()]
+        if letters:
+            upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+            if upper_ratio > 0.85:
+                cleaned = cleaned.lower().title()
+
+                for word in [" De ", " Da ", " Do ", " Das ", " Dos ", " E "]:
+                    cleaned = cleaned.replace(word, word.lower())
+
+        return cleaned
+
+    @staticmethod
     def _validate_product(
         product: Dict[str, Any],
         index: int,
@@ -301,10 +323,6 @@ class ReceiptParser:
                 logger.warning(f"Produto {index}: categoria inválida '{categoria}'")
                 categoria = "Extra"
 
-            if payment_method not in VALID_PAYMENT_METHODS:
-                logger.warning(f"Produto {index}: forma de pagamento inválida '{payment_method}'")
-                return None
-
             qnt = float(product["Qnt"])
             valor = float(product["Valor"])
             desconto = float(product.get("Desconto", 0))
@@ -312,6 +330,7 @@ class ReceiptParser:
             product_name = re.sub(r"\s+", " ", str(product["Produto"])).strip()
             product_name, extracted_measure = ReceiptParser._extract_measure_from_product(product_name)
             product_name = ReceiptParser._clean_product_name(product_name)
+            product_name = ReceiptParser._normalize_product_name(product_name)
             normalized_type = ReceiptParser._normalize_type(product.get("Tipo", ""), qnt, extracted_measure)
 
             validated = {

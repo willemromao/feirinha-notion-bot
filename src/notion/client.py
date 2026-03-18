@@ -2,35 +2,12 @@
 Cliente para integração com Notion API
 """
 import logging
-import re
 from typing import List, Dict, Any
 from notion_client import Client
 from processing.receipt_parser import ReceiptParser
 
 logger = logging.getLogger(__name__)
 DEFAULT_PRODUCT_EMOJI = "🛒"
-
-PROPERTY_ALIASES = {
-    "Produto": ["Produto"],
-    "Data": ["Data"],
-    "Categoria": ["Categoria"],
-    "Tipo": ["Tipo"],
-    "Qnt": ["Qnt.", "Qnt", "Quantidade"],
-    "Valor": ["Valor", "Preço", "Preco", "Valor Total", "Preço Total", "Preco Total"],
-    "Desconto": ["Desconto", "Desc.", "Descontos"],
-    "FormaDePagamento": ["Forma de Pagamento", "FormaDePagamento", "Pagamento", "Forma Pagamento"],
-}
-
-EXPECTED_TYPES = {
-    "Produto": "title",
-    "Data": "date",
-    "Categoria": "select",
-    "Tipo": "rich_text",
-    "Qnt": "number",
-    "Valor": "number",
-    "Desconto": "number",
-    "FormaDePagamento": "select",
-}
 
 class NotionClient:
     """Cliente para inserir produtos na base Notion"""
@@ -43,7 +20,7 @@ class NotionClient:
 
         self.client = Client(auth=token)
         self.database_id = database_id
-        self.property_names = self._resolve_property_names()
+        self._validate_database_properties()
 
     def insert_products(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -86,30 +63,29 @@ class NotionClient:
         Args:
             product: Dicionário com dados validados do produto
         """
-        product_name = self._normalize_product_name(product["Produto"])
         product_emoji = self._resolve_product_emoji(product)
 
         properties = {
-            self.property_names["Produto"]: {
+            "Produto": {
                 "title": [
                     {
                         "text": {
-                            "content": product_name
+                            "content": product["Produto"]
                         }
                     }
                 ]
             },
-            self.property_names["Data"]: {
+            "Data": {
                 "date": {
                     "start": product["Data"]
                 }
             },
-            self.property_names["Categoria"]: {
+            "Categoria": {
                 "select": {
                     "name": product["Categoria"]
                 }
             },
-            self.property_names["Tipo"]: {
+            "Tipo": {
                 "rich_text": [
                     {
                         "text": {
@@ -118,16 +94,16 @@ class NotionClient:
                     }
                 ]
             },
-            self.property_names["Qnt"]: {
+            "Qnt.": {
                 "number": product["Qnt"]
             },
-            self.property_names["Valor"]: {
+            "Valor": {
                 "number": product["Valor"]
             },
-            self.property_names["Desconto"]: {
+            "Desconto": {
                 "number": product["Desconto"]
             },
-            self.property_names["FormaDePagamento"]: {
+            "Forma de Pagamento": {
                 "select": {
                     "name": product["FormaDePagamento"]
                 }
@@ -149,74 +125,28 @@ class NotionClient:
 
         return DEFAULT_PRODUCT_EMOJI
 
-    @staticmethod
-    def _normalize_product_name(product_name: str) -> str:
+    def _validate_database_properties(self) -> None:
         """
-        Normaliza texto do produto:
-        - remove espaços duplicados
-        - se vier em caixa alta, converte para um title case legível
-        """
-        cleaned = re.sub(r"\s+", " ", str(product_name)).strip()
-        if not cleaned:
-            return cleaned
-
-        letters = [c for c in cleaned if c.isalpha()]
-        if letters:
-            upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
-            if upper_ratio > 0.85:
-                cleaned = cleaned.lower().title()
-
-                for word in [" De ", " Da ", " Do ", " Das ", " Dos ", " E "]:
-                    cleaned = cleaned.replace(word, word.lower())
-
-        return cleaned
-
-    def _resolve_property_names(self) -> Dict[str, str]:
-        """
-        Resolve os nomes reais das propriedades no database, aceitando aliases.
-        Isso permite usar bases com variações de nomenclatura (ex.: Valor vs Preço).
+        Valida se a database possui exatamente as propriedades esperadas.
         """
         database = self.client.databases.retrieve(self.database_id)
         db_properties = database.get("properties", {})
 
-        resolved: Dict[str, str] = {}
-        for logical_name, aliases in PROPERTY_ALIASES.items():
-            expected_type = EXPECTED_TYPES[logical_name]
-            selected_name = None
-
-            for alias in aliases:
-                prop = db_properties.get(alias)
-                if prop and prop.get("type") == expected_type:
-                    selected_name = alias
-                    break
-
-            if not selected_name:
-                alias_map = {a.lower(): a for a in aliases}
-                for actual_name, prop in db_properties.items():
-                    if actual_name.lower() in alias_map and prop.get("type") == expected_type:
-                        selected_name = actual_name
-                        break
-
-            if not selected_name:
-                alias_canonical = {self._canonical_property_name(a) for a in aliases}
-                for actual_name, prop in db_properties.items():
-                    actual_canonical = self._canonical_property_name(actual_name)
-                    if actual_canonical in alias_canonical and prop.get("type") == expected_type:
-                        selected_name = actual_name
-                        break
-
-            if not selected_name:
+        for property_name, expected_type in {
+            "Produto": "title",
+            "Data": "date",
+            "Categoria": "select",
+            "Tipo": "rich_text",
+            "Qnt.": "number",
+            "Valor": "number",
+            "Desconto": "number",
+            "Forma de Pagamento": "select",
+        }.items():
+            prop = db_properties.get(property_name)
+            if not prop or prop.get("type") != expected_type:
                 raise ValueError(
-                    f"Propriedade obrigatória não encontrada para '{logical_name}' "
-                    f"(esperado tipo '{expected_type}', aliases: {aliases})"
+                    f"Propriedade obrigatória não encontrada para '{property_name}' "
+                    f"(nome esperado: '{property_name}', tipo esperado: '{expected_type}')"
                 )
 
-            resolved[logical_name] = selected_name
-
-        logger.info(f"Mapeamento de propriedades Notion: {resolved}")
-        return resolved
-
-    @staticmethod
-    def _canonical_property_name(name: str) -> str:
-        """Normaliza nome de propriedade para matching tolerante a espaços/case."""
-        return re.sub(r"\s+", " ", str(name or "")).strip().lower()
+        logger.info("Schema da database do Notion validado com sucesso")

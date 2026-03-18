@@ -121,15 +121,13 @@ class OpenAIClient:
 
             response_json = response.json()
 
-            result = response_json.get("output_text")
-            if not result:
-                output = response_json.get("output", [])
-                texts = []
-                for item in output:
-                    for content in item.get("content", []):
-                        if content.get("type") in {"output_text", "text"} and content.get("text"):
-                            texts.append(content["text"])
-                result = "\n".join(texts).strip()
+            output = response_json.get("output", [])
+            texts = []
+            for item in output:
+                for content in item.get("content", []):
+                    if content.get("type") in {"output_text", "text"} and content.get("text"):
+                        texts.append(content["text"])
+            result = "\n".join(texts).strip()
 
             if not result:
                 logger.error(f"Resposta sem texto útil da OpenAI: {response_json}")

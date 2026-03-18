@@ -28,7 +28,7 @@ class TelegramHandler:
             body: Corpo do request em JSON
 
         Returns:
-            Dicionário com dados do update ou None se inválido
+            Dicionárgpt 3 tem quantas dimensoes?io com dados do update ou None se inválido
         """
         try:
             update = json.loads(body)
