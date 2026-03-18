@@ -1,5 +1,13 @@
 # Feirinha Notion Bot
 
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-FF9900?logo=awslambda&logoColor=white)
+![AWS SAM](https://img.shields.io/badge/AWS-SAM-0B5CAB?logo=amazonaws&logoColor=white)
+![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-GPT--5%20mini-412991?logo=openai&logoColor=white)
+![Notion](https://img.shields.io/badge/Notion-API-000000?logo=notion&logoColor=white)
+![DynamoDB](https://img.shields.io/badge/AWS-DynamoDB-4053D6?logo=amazondynamodb&logoColor=white)
+
 Bot Telegram serverless que automatiza o cadastro de compras de supermercado no Notion. Basta enviar uma foto do comprovante com a forma de pagamento na legenda e a IA extrai e cadastra todos os produtos automaticamente.
 
 ## Funcionalidades
