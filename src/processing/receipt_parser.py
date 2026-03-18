@@ -7,6 +7,8 @@ import re
 import unicodedata
 from typing import List, Dict, Any, Optional, Tuple
 
+from domain.product import ValidatedProduct
+
 logger = logging.getLogger(__name__)
 
 VALID_CATEGORIES = [
@@ -84,7 +86,7 @@ class ReceiptParser:
     """Parser para validar e estruturar dados de comprovantes"""
 
     @staticmethod
-    def parse_openai_response(response: str, payment_method: str) -> Optional[List[Dict[str, Any]]]:
+    def parse_openai_response(response: str, payment_method: str) -> Optional[List[ValidatedProduct]]:
         """
         Faz parse da resposta JSON da OpenAI e valida os dados
 
@@ -118,7 +120,7 @@ class ReceiptParser:
 
             logger.info(f"OpenAI retornou {len(products)} item(ns) brutos")
 
-            validated_products = []
+            validated_products: List[ValidatedProduct] = []
             for idx, product in enumerate(products):
                 validated = ReceiptParser._validate_product(product, idx, normalized_payment_method)
                 if validated:
@@ -300,7 +302,7 @@ class ReceiptParser:
         product: Dict[str, Any],
         index: int,
         payment_method: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[ValidatedProduct]:
         """
         Valida campos individuais de um produto
 
@@ -333,22 +335,20 @@ class ReceiptParser:
             product_name = ReceiptParser._normalize_product_name(product_name)
             normalized_type = ReceiptParser._normalize_type(product.get("Tipo", ""), qnt, extracted_measure)
 
-            validated = {
-                "Data": product["Data"],
-                "Produto": product_name,
-                "Tipo": normalized_type,
-                "Qnt": qnt,
-                "Valor": valor,
-                "Desconto": desconto,
-                "Categoria": categoria,
-                "FormaDePagamento": payment_method
-            }
-
             emoji = str(product.get("Emoji", "")).strip()
-            if ReceiptParser.is_valid_emoji(emoji):
-                validated["Emoji"] = emoji
+            validated_emoji = emoji if ReceiptParser.is_valid_emoji(emoji) else None
 
-            return validated
+            return ValidatedProduct(
+                data=product["Data"],
+                produto=product_name,
+                tipo=normalized_type,
+                qnt=qnt,
+                valor=valor,
+                desconto=desconto,
+                categoria=categoria,
+                forma_de_pagamento=payment_method,
+                emoji=validated_emoji,
+            )
 
         except (ValueError, TypeError) as e:
             logger.warning(f"Produto {index}: erro de validação - {e}")

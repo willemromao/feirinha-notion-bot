@@ -9,9 +9,7 @@ from telegram.security import (
     get_user_notion_config,
 )
 from telegram.handler import TelegramHandler
-from processing.openai_client import OpenAIClient
-from processing.receipt_parser import ReceiptParser
-from notion.client import NotionClient
+from services.receipt_processing_service import ReceiptProcessingService
 from storage.dynamodb_client import DynamoDBClient
 
 logging.basicConfig(
@@ -19,26 +17,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-
-def _looks_like_truncated_json(payload: str) -> bool:
-    """Detecta respostas JSON provavelmente truncadas da OpenAI."""
-    text = str(payload or "").strip()
-    if not text:
-        return False
-
-    if text.startswith("```json"):
-        text = text[7:]
-    if text.startswith("```"):
-        text = text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
-    text = text.strip()
-
-    if not text.startswith("["):
-        return False
-
-    return text.count("[") > text.count("]") or text.count("{") > text.count("}")
 
 
 def lambda_handler(event, context):
@@ -62,6 +40,10 @@ def lambda_handler(event, context):
 
         body = event.get("body", "{}")
         telegram = TelegramHandler()
+        processing_service = ReceiptProcessingService(
+            telegram_handler=telegram,
+            notion_config_getter=get_user_notion_config,
+        )
         update_data = telegram.parse_update(body)
 
         if not update_data:
@@ -72,8 +54,6 @@ def lambda_handler(event, context):
         chat_id = update_data["chat_id"]
         user_id = update_data["user_id"]
         message_id = update_data["message_id"]
-        payment_method = ReceiptParser.normalize_payment_method(update_data.get("caption", ""))
-
         if update_id:
             db_client = DynamoDBClient()
             if db_client.is_processed(update_id):
@@ -91,95 +71,10 @@ def lambda_handler(event, context):
             return create_response(200, {"ok": True, "message": "User not authorized"})
 
         logger.info(f"Processando foto do usuário {user_id}")
-
-        if not payment_method:
-            valid_options = ", ".join(ReceiptParser.list_payment_methods())
-            telegram.send_message(
-                chat_id,
-                "❌ Envie a foto com a forma de pagamento na legenda.\n\n"
-                f"Opções válidas: {valid_options}",
-                message_id
-            )
-            return create_response(200, {"ok": False, "error": "Missing or invalid payment method"})
-
-        telegram.send_message(
-            chat_id,
-            f"⏳ Processando sua nota fiscal com pagamento em *{payment_method}*... Isso pode levar alguns segundos.",
-            message_id
-        )
-
-        image_bytes = telegram.download_photo(update_data["photo"])
-        if not image_bytes:
-            telegram.send_message(
-                chat_id,
-                "❌ Falha ao baixar a imagem. Tente novamente.",
-                message_id
-            )
-            return create_response(200, {"ok": False, "error": "Failed to download image"})
-
-        openai_client = OpenAIClient()
-        extracted_data = openai_client.extract_receipt_data(image_bytes)
-
-        if not extracted_data:
-            telegram.send_message(
-                chat_id,
-                "❌ Falha ao processar a imagem com OpenAI. Tente novamente.",
-                message_id
-            )
-            return create_response(200, {"ok": False, "error": "OpenAI processing failed"})
-
-        parser = ReceiptParser()
-        products = parser.parse_openai_response(extracted_data, payment_method)
-
-        if not products:
-            if _looks_like_truncated_json(extracted_data):
-                telegram.send_message(
-                    chat_id,
-                    "❌ A IA retornou uma resposta incompleta ao processar a nota. Tente enviar a imagem novamente.",
-                    message_id
-                )
-                return create_response(200, {"ok": False, "error": "Truncated OpenAI JSON response"})
-
-            telegram.send_message(
-                chat_id,
-                "❌ Não foi possível extrair produtos da nota fiscal. Verifique se a imagem está legível.",
-                message_id
-            )
-            return create_response(200, {"ok": False, "error": "No products found"})
-
-        logger.info(f"Extraídos {len(products)} produtos")
-
-        notion_config = get_user_notion_config(user_id)
-        if not notion_config:
-            logger.error(f"Nenhuma configuração Notion válida para usuário {user_id}")
-            telegram.send_message(
-                chat_id,
-                "❌ Configuração do Notion não encontrada para seu usuário.",
-                message_id
-            )
-            return create_response(200, {"ok": False, "error": "Notion config not configured for user"})
-
-        notion_client = NotionClient(
-            database_id=notion_config["database_id"],
-            token=notion_config["token"],
-        )
-        result = notion_client.insert_products(products)
-
-        success_msg = f"✅ *{result['success']} produtos cadastrados com sucesso!*"
-
-        if result['failed'] > 0:
-            error_details = "\n".join(f"• {err}" for err in result['errors'][:3])
-            success_msg += f"\n\n⚠️ {result['failed']} produtos falharam:\n{error_details}"
-            if len(result['errors']) > 3:
-                success_msg += f"\n\n_... e mais {len(result['errors']) - 3} erro(s)_"
-
-        telegram.send_message(chat_id, success_msg, message_id)
-
-        return create_response(200, {
-            "ok": True,
-            "products_inserted": result['success'],
-            "products_failed": result['failed']
-        })
+        result = processing_service.process_receipt(update_data)
+        if result.user_message:
+            telegram.send_message(chat_id, result.user_message, message_id)
+        return create_response(200, result.response_body)
 
     except Exception as e:
         logger.error(f"Erro crítico: {e}", exc_info=True)

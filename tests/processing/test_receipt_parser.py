@@ -1,10 +1,12 @@
 import importlib.util
 import json
 import os
+import sys
 import unittest
 
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "src"))
 MODULE_PATH = os.path.join(PROJECT_ROOT, "src", "processing", "receipt_parser.py")
 SPEC = importlib.util.spec_from_file_location("receipt_parser_module", MODULE_PATH)
 RECEIPT_PARSER_MODULE = importlib.util.module_from_spec(SPEC)
@@ -48,9 +50,9 @@ class ReceiptParserPaymentMethodTests(unittest.TestCase):
         products = ReceiptParser.parse_openai_response(response, "pagamento: pix")
 
         self.assertIsNotNone(products)
-        self.assertEqual(products[0]["FormaDePagamento"], "Pix")
-        self.assertEqual(products[0]["Produto"], "Leite Integral")
-        self.assertEqual(products[0]["Emoji"], "🥛")
+        self.assertEqual(products[0].forma_de_pagamento, "Pix")
+        self.assertEqual(products[0].produto, "Leite Integral")
+        self.assertEqual(products[0].emoji, "🥛")
 
     def test_parse_openai_response_ignores_invalid_emoji(self):
         response = json.dumps([
@@ -69,7 +71,7 @@ class ReceiptParserPaymentMethodTests(unittest.TestCase):
         products = ReceiptParser.parse_openai_response(response, "pix")
 
         self.assertIsNotNone(products)
-        self.assertNotIn("Emoji", products[0])
+        self.assertIsNone(products[0].emoji)
 
     def test_parse_openai_response_accepts_missing_tipo_and_desconto(self):
         response = json.dumps([
@@ -85,8 +87,8 @@ class ReceiptParserPaymentMethodTests(unittest.TestCase):
         products = ReceiptParser.parse_openai_response(response, "pix")
 
         self.assertIsNotNone(products)
-        self.assertEqual(products[0]["Desconto"], 0.0)
-        self.assertEqual(products[0]["Tipo"], "No peso - 1 kg")
+        self.assertEqual(products[0].desconto, 0.0)
+        self.assertEqual(products[0].tipo, "No peso - 1 kg")
 
     def test_parse_openai_response_rejects_invalid_payment_method(self):
         response = json.dumps([
