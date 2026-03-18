@@ -98,7 +98,6 @@ class OpenAIClient:
                         ]
                     }
                 ],
-                "max_output_tokens": 100000,
                 "reasoning": {
                     "effort": "low",
                 }
