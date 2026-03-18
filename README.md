@@ -1,4 +1,4 @@
-# Bot Telegram - Cadastro Automático de Compras no Notion
+# Feirinha Notion Bot
 
 Bot Telegram serverless que automatiza o cadastro de compras de supermercado no Notion. Basta enviar uma foto do comprovante com a forma de pagamento na legenda e a IA extrai e cadastra todos os produtos automaticamente.
 
@@ -59,7 +59,7 @@ cd feirinha-notion-bot
 - **Data** (Date): Data da compra
 - **Produto** (Title): Nome do produto
 - **Tipo** (Text): Descrição da embalagem
-- **Qnt** (Number): Quantidade
+- **Qnt.** (Number): Quantidade
 - **Valor** (Number): Preço em Reais
 - **Desconto** (Number): Desconto aplicado
 - **Pago** (Formula): `prop("Valor") - prop("Desconto")`
@@ -101,14 +101,24 @@ Será solicitado:
 - **AWS Region**: `us-east-1` (ou sua preferência)
 - **Parameter TelegramBotToken**: Token do BotFather
 - **Parameter TelegramSecretToken**: Token secreto gerado
-- **Parameter AuthorizedUserId**: Seu Telegram User ID
+- **Parameter AuthorizedUserIds**: Um ou mais Telegram User IDs separados por vírgula
 - **Parameter OpenAIApiKey**: Chave da API OpenAI
-- **Parameter NotionToken**: Token de integração Notion
-- **Parameter NotionDatabaseId**: ID da base Notion
+- **Parameter NotionConfigByUser**: JSON com `database_id` e `token` por usuário
 - **Confirm changes before deploy**: Y
 - **Allow SAM CLI IAM role creation**: Y
 - **Disable rollback**: N
 - **Save arguments to samconfig.toml**: Y
+
+Exemplo de `NotionConfigByUser`:
+
+```json
+{
+  "123456789": {
+    "database_id": "sua_database_id",
+    "token": "secret_xxx"
+  }
+}
+```
 
 ### 3. Configure o Webhook do Telegram
 
@@ -156,14 +166,27 @@ sam build && sam deploy
 feirinha-notion-bot/
 ├── src/
 │   ├── lambda_handler.py           # Entry point da Lambda
+│   ├── domain/
+│   │   └── product.py              # Tipo estruturado de produto validado
+│   ├── services/
+│   │   └── receipt_processing_service.py  # Orquestra o fluxo principal da nota
 │   ├── telegram/
 │   │   ├── handler.py              # Processa mensagens do Telegram
 │   │   └── security.py             # Validação de segurança
 │   ├── processing/
 │   │   ├── openai_client.py        # Integração com OpenAI
 │   │   └── receipt_parser.py       # Parser e validação de dados
-│   └── notion/
-│       └── client.py               # Cliente Notion API
+│   ├── notion/
+│   │   ├── client.py               # Cliente Notion API
+│   │   └── schema.py               # Schema e serialização da base Notion
+│   └── storage/
+│       └── dynamodb_client.py      # Deduplicação de updates
+├── tests/
+│   ├── processing/
+│   │   └── test_receipt_parser.py
+│   ├── notion/
+│   │   └── test_client.py
+│   └── test_lambda_handler.py
 ├── template.yaml                   # Infraestrutura AWS SAM
 ├── requirements.txt                # Dependências Python
 └── README.md                       # Este arquivo
@@ -187,6 +210,12 @@ O bot implementa 3 camadas de segurança:
 
 ## Troubleshooting
 
+### Rodar testes unitários
+
+```bash
+python3 -m unittest discover -s tests -p 'test*.py'
+```
+
 ### Ver logs da Lambda
 
 ```bash
@@ -196,11 +225,7 @@ sam logs --stack-name feirinha-notion-bot -n TelegramBotFunction --tail
 ### Testar localmente
 
 ```bash
-# Crie um arquivo .env com as variáveis
-cp .env.example .env
-# Edite o .env com suas credenciais
-
-# Execute teste local
+# Exporte as variáveis de ambiente necessárias ou carregue-as no seu shell
 sam local invoke TelegramBotFunction -e event.example.json
 ```
 
@@ -224,7 +249,7 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 
 ### Erro "User not authorized"
 
-- Verifique se o `AuthorizedUserId` está correto
+- Verifique se o `AuthorizedUserIds` está correto
 - Use [@userinfobot](https://t.me/userinfobot) para confirmar seu User ID
 
 ### Erro de forma de pagamento inválida
@@ -241,7 +266,7 @@ curl "https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo"
 
 - Verifique se a integração está conectada à base
 - Confirme que o schema da base está correto
-- Verifique os nomes exatos das propriedades
+- Verifique os nomes exatos das propriedades: `Produto`, `Data`, `Categoria`, `Tipo`, `Qnt.`, `Valor`, `Desconto`, `Forma de Pagamento`
 
 ## Logs e Monitoramento
 
