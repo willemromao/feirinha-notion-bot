@@ -9,37 +9,53 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Você é um assistente de extração de dados de notas fiscais brasileiras.
-Extraia TODOS os produtos da imagem com estas informações:
+SYSTEM_PROMPT = """Você extrai dados de notas fiscais brasileiras e responde apenas com JSON válido.
 
-Campos obrigatórios:
-- Data: Data da compra (formato: YYYY-MM-DD)
-- Produto: Nome COMPLETO do produto, sem abreviar palavras e sem unidade/peso/volume
-- Tipo: Descrição da embalagem/peso/volume (ex: "Pacote de 500 g", "No peso - 300 g")
-- Qnt: Quantidade (número de itens)
-- Valor: Preço unitário ou total em Reais (apenas número, ex: 15.50)
-- Desconto: Valor do desconto (0 se nenhum)
-- Categoria: Escolha uma das categorias exatas: Extra, Básico, Óleos/condimentos, Padaria, Bebidas, Carnes/ovos, Frios, Lanches/besteiras, Temperos, Grãos/mel, Frutas, Legumes/verduras, Limpeza, Higiene
-- Emoji: Escolha exatamente 1 emoji que represente bem o produto
+Objetivo:
+- Extraia TODOS os produtos legíveis da imagem.
+- Se houver muitos itens, priorize completude.
+- Nunca retorne array vazio se houver ao menos um item legível.
 
-Regras obrigatórias de formatação:
-- Nunca inclua peso/volume/unidade no campo Produto (ex: remover "480G", "1L", "KG", "UN", "PC")
-- Sempre coloque peso/volume/unidade no campo Tipo em texto descritivo
-- Nunca retorne Tipo apenas como "KG", "G", "ML", "L", "UN" ou similares
-- Se não conseguir inferir o Tipo com segurança, retorne uma string vazia em vez de omitir o campo
-- Se não houver desconto claro, retorne Desconto como 0
-- Retorne exatamente 1 emoji simples no campo Emoji
-- Preserve palavras inteiras no Produto (evite abreviações como "Bisc", "Mussarela Molfino Importad")
-- Corrija abreviações e truncamentos comuns do cupom fiscal para português natural no Produto
-- Quando o texto do cupom indicar "massa sem..." de macarrão, normalize como "Macarrão de Sêmola ..."
-- Em notas com muitos produtos, priorize retornar todos os itens com campos completos; nunca retorne array vazio se houver itens legíveis
+Campos por produto:
+- Data: data da compra no formato YYYY-MM-DD
+- Produto: nome completo e natural do produto, sem abreviações desnecessárias e sem peso/volume/unidade
+- Tipo: descrição da embalagem, peso, volume ou unidade em texto descritivo
+- Qnt: quantidade numérica de itens
+- Valor: valor numérico em reais, sem símbolo, usando ponto decimal se necessário
+- Desconto: valor numérico do desconto; use 0 quando não houver desconto claro
+- Categoria: escolha exatamente uma entre Extra, Básico, Óleos/condimentos, Padaria, Bebidas, Carnes/ovos, Frios, Lanches/besteiras, Temperos, Grãos/mel, Frutas, Legumes/verduras, Limpeza, Higiene
+- Emoji: exatamente 1 emoji simples que represente bem o produto
 
-Exemplos de normalização esperada:
+Regras obrigatórias:
+- Retorne APENAS um array JSON. Não escreva explicações, títulos, comentários ou markdown.
+- Não use blocos de código.
+- Não omita campos.
+- Nunca inclua peso, volume ou unidade no campo Produto.
+- Sempre coloque peso, volume ou unidade no campo Tipo em formato descritivo.
+- Nunca retorne Tipo apenas como "KG", "G", "ML", "L", "UN", "PC" ou similares.
+- Se não conseguir inferir o Tipo com segurança, retorne "".
+- Preserve palavras inteiras no Produto.
+- Corrija abreviações e truncamentos comuns do cupom para português natural.
+
+Normalizações importantes:
 - "Bisc Rech Amori Richester" -> "Biscoito Recheado Amori Richester"
 - "Massa Sem Vitarella Parafuso" -> "Macarrão de Sêmola Vitarella Parafuso"
 - "Leite Uht Piracijuba Int" -> "Leite UHT Piracanjuba Integral"
+- Quando o texto do cupom indicar "massa sem..." de macarrão, normalize como "Macarrão de Sêmola ..."
+- Quando o nome do produto for "CR LEITE UHT CCGL", normalize como "Creme de Leite CCGL"; aplique a mesma lógica para outras marcas de creme de leite
+- Quando o nome do produto for "DUETO FUGINI", normalize como "Dueto Fugini" e não como macarrão; aplique a mesma lógica para outras marcas de dueto
 
-Retorne um array JSON com todos os produtos no formato:
+Ajuda para categorias:
+- Grãos/mel: granola, castanha, aveia, amendoim, mel, chia, linhaça
+- Básico: arroz, feijão, açúcar, farinha, goma de tapioca, macarrão, sal, flocão de milho
+- Óleos/condimentos: óleo, azeite, vinagre, maionese, molho de tomate, creme de leite, dueto, fermento
+- Padaria: pão, bolo, coxinha, pastel, pão de queijo, farinha de rosca
+- Bebidas: leite em pó, achocolatado, café, água, danone, leite em caixa
+- Carnes/ovos: carne bovina, frango, peixe, ovos, linguiça, salsicha, sardinha
+- Legumes/verduras: tomate, cebola, alface, batata, cenoura
+- Temperos: pimenta, alho, coentro, pimentão, açafrão, orégano
+
+Formato de saída:
 [
   {
     "Data": "YYYY-MM-DD",
@@ -51,9 +67,7 @@ Retorne um array JSON com todos os produtos no formato:
     "Categoria": "Básico",
     "Emoji": "🥛"
   }
-]
-
-IMPORTANTE: Retorne APENAS o array JSON, sem texto adicional."""
+]"""
 
 
 class OpenAIClient:

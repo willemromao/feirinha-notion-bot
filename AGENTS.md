@@ -3,8 +3,11 @@
 ## Project Structure & Module Organization
 - `src/` contains the Lambda application code.
 - `src/lambda_handler.py` is the AWS Lambda entrypoint.
-- `src/telegram/`, `src/processing/`, `src/notion/`, and `src/storage/` hold integration and domain modules (Telegram I/O, receipt parsing/OpenAI, Notion writes, DynamoDB deduplication).
+- `src/domain/` contains validated domain models.
+- `src/services/` orchestrates the receipt-processing workflow.
+- `src/telegram/`, `src/processing/`, `src/notion/`, and `src/storage/` hold integration modules (Telegram I/O, receipt parsing/OpenAI, Notion writes, DynamoDB deduplication).
 - `scripts/` contains operational helpers (`setup-webhook.sh`, `delete-webhook.sh`, `validate-credentials.py`).
+- `tests/` contains the automated test suite, organized to mirror `src/`.
 - `template.yaml` defines AWS SAM infrastructure (Lambda, HTTP API, DynamoDB).
 - `event.example.json` is the local invocation payload example.
 
@@ -25,10 +28,11 @@
 - Prefer type hints in public methods and data-shaping code (see `src/telegram/handler.py`).
 
 ## Testing Guidelines
-- There is no formal automated test suite yet; validate changes with:
+- Run automated tests with `python3 -m unittest discover -s tests -p 'test*.py'`.
+- Validate integration changes with:
   - local invoke (`sam local invoke ...`)
   - credential validation script
-  - targeted webhook/manual flow checks.
+  - targeted webhook/manual flow checks
 - For new parsing/business logic, add unit tests under `tests/` mirroring `src/` paths (example: `tests/processing/test_receipt_parser.py`).
 
 ## Commit & Pull Request Guidelines
