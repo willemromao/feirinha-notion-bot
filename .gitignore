@@ -216,5 +216,4 @@ event.json
 test_images/
 *.jpeg
 *.jpg
-*.png
 *.gif
