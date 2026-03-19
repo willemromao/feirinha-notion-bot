@@ -214,6 +214,5 @@ sam-installation/
 # Project specific
 event.json
 test_images/
-*.jpeg
 *.jpg
 *.gif

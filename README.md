@@ -1,5 +1,7 @@
 # Feirinha Notion Bot
 
+<img src="/assets/bot.jpeg" alt="Imagem do Bot" width="320">
+
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-FF9900?logo=awslambda&logoColor=white)
 ![AWS SAM](https://img.shields.io/badge/AWS-SAM-0B5CAB?logo=amazonaws&logoColor=white)
