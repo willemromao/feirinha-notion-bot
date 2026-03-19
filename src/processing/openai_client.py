@@ -49,7 +49,7 @@ Ajuda para categorias:
 - Grãos/mel: granola, castanha, aveia, amendoim, mel, chia, linhaça
 - Básico: arroz, feijão, açúcar, farinha, goma de tapioca, macarrão, sal, flocão de milho
 - Óleos/condimentos: óleo, azeite, vinagre, maionese, molho de tomate, creme de leite, dueto, fermento
-- Padaria: pão, bolo, coxinha, pastel, pão de queijo, farinha de rosca
+- Padaria: pão, bolo, coxinha, pastel, pão de queijo, farinha de rosca. Evite biscoitos e bolachas, que podem ser classificados como Básico ou Lanches/besteiras dependendo do tipo.
 - Bebidas: leite em pó, achocolatado, café, água, danone, leite em caixa
 - Carnes/ovos: carne bovina, frango, peixe, ovos, linguiça, salsicha, sardinha
 - Legumes/verduras: tomate, cebola, alface, batata, cenoura
