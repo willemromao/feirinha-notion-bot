@@ -10,6 +10,10 @@
 
 Bot Telegram serverless que automatiza o cadastro de compras de supermercado no Notion. Basta enviar uma foto do comprovante com a forma de pagamento na legenda e a IA extrai e cadastra todos os produtos automaticamente.
 
+## Demonstração
+
+[![Demonstração do Bot](/assets/demo.png)](https://youtube.com/shorts/bw33TnZIlac)
+
 ## Funcionalidades
 
 - 📸 Envie foto do comprovante via Telegram com a forma de pagamento na legenda
