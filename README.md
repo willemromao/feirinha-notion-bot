@@ -56,7 +56,7 @@ Telegram → API Gateway → Lambda → [OpenAI + Notion]
 ### 1. Clone o Repositório
 
 ```bash
-git clone <seu-repo>
+git clone <repo>
 cd feirinha-notion-bot
 ```
 
