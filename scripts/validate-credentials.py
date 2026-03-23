@@ -7,13 +7,11 @@ import os
 import json
 from pathlib import Path
 
-# Adiciona o diretório src ao path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
     from dotenv import load_dotenv
     import httpx
-    from openai import OpenAI
     from notion_client import Client
 except ImportError:
     print("❌ Dependências não instaladas. Execute: pip install -r requirements.txt")
@@ -108,10 +106,18 @@ def validate_openai():
     api_key = os.environ.get("OPENAI_API_KEY")
 
     try:
-        client = OpenAI(api_key=api_key)
-        # Tenta listar modelos como forma de validar a chave
-        models = client.models.list()
-        print(f"  ✅ OpenAI conectada ({len(models.data)} modelos disponíveis)")
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(
+                "https://api.openai.com/v1/models",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        models = data.get("data", [])
+        print(f"  ✅ OpenAI conectada ({len(models)} modelos disponíveis)")
         return True
 
     except Exception as e:
@@ -162,7 +168,7 @@ def validate_notion():
                 "Data": "date",
                 "Categoria": "select",
                 "Tipo": "rich_text",
-                "Qnt": "number",
+                "Qnt.": "number",
                 "Valor": "number",
                 "Desconto": "number",
                 "Forma de Pagamento": "select"
@@ -193,7 +199,6 @@ def main():
     print("=" * 50)
     print()
 
-    # Carrega .env se existir
     env_file = Path(__file__).parent.parent / ".env"
     if env_file.exists():
         load_dotenv(env_file)
@@ -201,7 +206,6 @@ def main():
     else:
         print("⚠️  Arquivo .env não encontrado. Usando variáveis de ambiente do sistema.\n")
 
-    # Validações
     results = []
     results.append(("Variáveis de ambiente", validate_env_vars()))
 
@@ -210,7 +214,6 @@ def main():
         results.append(("OpenAI", validate_openai()))
         results.append(("Notion", validate_notion()))
 
-    # Resultado final
     print("\n" + "=" * 50)
     print("RESULTADO")
     print("=" * 50)
