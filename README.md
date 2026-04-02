@@ -2,7 +2,7 @@
 
 # Feirinha Notion Bot
 
-<img src="/assets/bot.jpeg" alt="Imagem do Bot" width="300">
+<img src="/images/bot.jpeg" alt="Imagem do Bot" width="300">
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![AWS Lambda](https://img.shields.io/badge/AWS-Lambda-FF9900?logo=awslambda&logoColor=white)
@@ -18,7 +18,7 @@ Bot Telegram serverless que automatiza o cadastro de compras de supermercado no 
 
 ## Demonstração
 
-[![Demonstração do Bot](/assets/demo.png)](https://youtube.com/shorts/bw33TnZIlac)
+[![Demonstração do Bot](/images/demo.png)](https://youtube.com/shorts/bw33TnZIlac)
 
 ## Funcionalidades
 
