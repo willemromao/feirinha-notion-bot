@@ -32,10 +32,13 @@ Regras obrigatórias:
 - Não omita campos.
 - Nunca inclua peso, volume ou unidade no campo Produto.
 - Sempre coloque peso, volume ou unidade no campo Tipo em formato descritivo.
+- Se o item for vendido por peso, use o formato exato: "No peso - X kg".
 - Nunca retorne Tipo apenas como "KG", "G", "ML", "L", "UN", "PC" ou similares.
 - Se não conseguir inferir o Tipo com segurança, retorne "".
 - Preserve palavras inteiras no Produto.
 - Corrija abreviações e truncamentos comuns do cupom para português natural.
+- Se houver código de promoção no formato LVxPGy (ex.: LV7PG5), normalize para "Leve x Pague y" e descreva o Tipo com base no volume/quantidade do leve.
+- Para LV500PG400, descreva o Tipo com a embalagem e o volume maior (ex.: "Vidro de 500ml").
 
 Normalizações importantes:
 - "Bisc Rech Amori Richester" -> "Biscoito Recheado Amori Richester"
@@ -44,6 +47,7 @@ Normalizações importantes:
 - Quando o texto do cupom indicar "massa sem..." de macarrão, normalize como "Macarrão de Sêmola ..."
 - Quando o nome do produto for "CR LEITE UHT CCGL", normalize como "Creme de Leite CCGL"; aplique a mesma lógica para outras marcas de creme de leite
 - Quando o nome do produto for "DUETO FUGINI", normalize como "Dueto Fugini" e não como macarrão; aplique a mesma lógica para outras marcas de dueto
+- Nissin, miojo e macarrão instantâneo devem ser classificados como "Lanches/besteiras".
 
 Ajuda para categorias:
 - Grãos/mel: granola, castanha, aveia, amendoim, mel, chia, linhaça

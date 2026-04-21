@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import unicodedata
+from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
 from domain.product import ValidatedProduct
@@ -86,7 +87,45 @@ class ReceiptParser:
     """Parser para validar e estruturar dados de comprovantes"""
 
     @staticmethod
-    def parse_openai_response(response: str, payment_method: str) -> Optional[List[ValidatedProduct]]:
+    def parse_caption(raw_caption: str) -> Tuple[Optional[str], Optional[str]]:
+        """Extrai forma de pagamento e data manual (ISO) de uma legenda do Telegram."""
+        lines = [line.strip() for line in str(raw_caption or "").splitlines() if line.strip()]
+        if not lines:
+            return None, None
+
+        payment_method = ReceiptParser.normalize_payment_method(lines[0])
+        manual_date_iso = None
+        if len(lines) > 1:
+            manual_date_iso = ReceiptParser.parse_manual_date_to_iso(lines[1])
+
+        return payment_method, manual_date_iso
+
+    @staticmethod
+    def parse_manual_date_to_iso(date_str: str) -> Optional[str]:
+        """Converte data manual DD/MM/AA ou DD/MM/AAAA para YYYY-MM-DD."""
+        text = str(date_str or "").strip()
+        match = re.fullmatch(r"(\d{2})/(\d{2})/(\d{2}|\d{4})", text)
+        if not match:
+            return None
+
+        day, month, year = match.groups()
+        year_int = int(year)
+        if len(year) == 2:
+            year_int = 2000 + year_int
+
+        try:
+            parsed = datetime(year_int, int(month), int(day))
+        except ValueError:
+            return None
+
+        return parsed.strftime("%Y-%m-%d")
+
+    @staticmethod
+    def parse_openai_response(
+        response: str,
+        payment_method: str,
+        override_date: Optional[str] = None,
+    ) -> Optional[List[ValidatedProduct]]:
         """
         Faz parse da resposta JSON da OpenAI e valida os dados
 
@@ -122,7 +161,12 @@ class ReceiptParser:
 
             validated_products: List[ValidatedProduct] = []
             for idx, product in enumerate(products):
-                validated = ReceiptParser._validate_product(product, idx, normalized_payment_method)
+                validated = ReceiptParser._validate_product(
+                    product,
+                    idx,
+                    normalized_payment_method,
+                    override_date,
+                )
                 if validated:
                     validated_products.append(validated)
 
@@ -302,6 +346,7 @@ class ReceiptParser:
         product: Dict[str, Any],
         index: int,
         payment_method: str,
+        override_date: Optional[str] = None,
     ) -> Optional[ValidatedProduct]:
         """
         Valida campos individuais de um produto
@@ -337,9 +382,13 @@ class ReceiptParser:
 
             emoji = str(product.get("Emoji", "")).strip()
             validated_emoji = emoji if ReceiptParser.is_valid_emoji(emoji) else None
+            product_date = override_date or str(product["Data"]).strip()
+            if not product_date:
+                logger.warning(f"Produto {index}: campo 'Data' vazio")
+                return None
 
             return ValidatedProduct(
-                data=product["Data"],
+                data=product_date,
                 produto=product_name,
                 tipo=normalized_type,
                 qnt=qnt,

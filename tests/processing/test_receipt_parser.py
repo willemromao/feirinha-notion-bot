@@ -105,6 +105,64 @@ class ReceiptParserPaymentMethodTests(unittest.TestCase):
 
         self.assertIsNone(ReceiptParser.parse_openai_response(response, "cartao c6"))
 
+    def test_parse_caption_extracts_payment_and_manual_date_ddmmaa(self):
+        payment_method, manual_date = ReceiptParser.parse_caption("pix\n15/03/26")
+
+        self.assertEqual(payment_method, "Pix")
+        self.assertEqual(manual_date, "2026-03-15")
+
+    def test_parse_caption_extracts_payment_and_manual_date_ddmmaaaa(self):
+        payment_method, manual_date = ReceiptParser.parse_caption("Débito Inter\n05/01/2026")
+
+        self.assertEqual(payment_method, "Débito - Inter")
+        self.assertEqual(manual_date, "2026-01-05")
+
+    def test_parse_caption_without_date_keeps_none(self):
+        payment_method, manual_date = ReceiptParser.parse_caption("Crédito Nubank")
+
+        self.assertEqual(payment_method, "Crédito - Nubank")
+        self.assertIsNone(manual_date)
+
+    def test_parse_caption_with_invalid_date_falls_back_to_none(self):
+        payment_method, manual_date = ReceiptParser.parse_caption("pix\n00/00/00")
+
+        self.assertEqual(payment_method, "Pix")
+        self.assertIsNone(manual_date)
+
+    def test_parse_openai_response_applies_override_date(self):
+        response = json.dumps([
+            {
+                "Data": "2026-03-16",
+                "Produto": "Leite Integral 1L",
+                "Tipo": "UN",
+                "Qnt": 1,
+                "Valor": 8.99,
+                "Desconto": 0,
+                "Categoria": "Básico",
+                "Emoji": "🥛",
+            },
+            {
+                "Data": "2026-03-17",
+                "Produto": "Tomate",
+                "Tipo": "KG",
+                "Qnt": 1,
+                "Valor": 10.0,
+                "Desconto": 0,
+                "Categoria": "Frutas",
+                "Emoji": "🍅",
+            },
+        ])
+
+        products = ReceiptParser.parse_openai_response(
+            response,
+            "pix",
+            override_date="2026-04-20",
+        )
+
+        self.assertIsNotNone(products)
+        self.assertEqual(products[0].data, "2026-04-20")
+        self.assertEqual(products[1].data, "2026-04-20")
+
 
 if __name__ == "__main__":
     unittest.main()

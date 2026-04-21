@@ -59,7 +59,7 @@ class ReceiptProcessingService:
         chat_id = update_data["chat_id"]
         message_id = update_data["message_id"]
         user_id = update_data["user_id"]
-        payment_method = ReceiptParser.normalize_payment_method(update_data.get("caption", ""))
+        payment_method, manual_date = ReceiptParser.parse_caption(update_data.get("caption", ""))
 
         logger.info(f"Processando foto do usuário {user_id}")
 
@@ -97,7 +97,14 @@ class ReceiptProcessingService:
                 response_body={"ok": False, "error": "OpenAI processing failed"},
             )
 
-        products = ReceiptParser.parse_openai_response(extracted_data, payment_method)
+        if manual_date:
+            logger.info(f"Data manual recebida na legenda: {manual_date}")
+
+        products = ReceiptParser.parse_openai_response(
+            extracted_data,
+            payment_method,
+            override_date=manual_date,
+        )
         if not products:
             if looks_like_truncated_json(extracted_data):
                 return ReceiptProcessingResult(
@@ -126,11 +133,22 @@ class ReceiptProcessingService:
                 response_body={"ok": False, "error": "Notion config not configured for user"},
             )
 
-        notion_client = self.notion_client_factory(
-            database_id=notion_config["database_id"],
-            token=notion_config["token"],
-        )
-        insert_result = notion_client.insert_products(products)
+        try:
+            notion_client = self.notion_client_factory(
+                database_id=notion_config["database_id"],
+                token=notion_config["token"],
+            )
+            insert_result = notion_client.insert_products(products)
+        except Exception as exc:
+            logger.error(f"Falha na integração com Notion: {exc}", exc_info=True)
+            return ReceiptProcessingResult(
+                ok=False,
+                user_message=(
+                    "❌ Não foi possível conectar ao Notion agora. "
+                    "Tente novamente em alguns minutos."
+                ),
+                response_body={"ok": False, "error": "Notion integration failed"},
+            )
 
         success_msg = f"✅ *{insert_result['success']} produtos cadastrados com sucesso!*"
         if insert_result["failed"] > 0:
